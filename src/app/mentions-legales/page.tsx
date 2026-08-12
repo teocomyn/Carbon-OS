@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ContentSection, PublicPage } from "@/components/public-page";
+import { isLegalIdentityComplete, legalIdentity } from "@/lib/legal";
 
 export const metadata: Metadata = {
   title: "Mentions légales",
@@ -15,12 +16,47 @@ export default function LegalPage() {
       intro="Carbon OS est actuellement un prototype public en phase de validation produit et méthodologique."
     >
       <ContentSection title="Édition">
-        <p>
-          Carbon OS est un projet expérimental développé et publié par l’auteur
-          du dépôt open source teocomyn/Carbon-OS. Les informations complètes de
-          l’éditeur devront être ajoutées ici avant toute ouverture commerciale
-          ou collecte de comptes utilisateurs.
-        </p>
+        {isLegalIdentityComplete ? (
+          <div className="space-y-2">
+            <p>
+              <strong className="text-[var(--foreground)]">Éditeur :</strong>{" "}
+              {legalIdentity.name}
+            </p>
+            <p>
+              <strong className="text-[var(--foreground)]">Statut :</strong>{" "}
+              {legalIdentity.status}
+            </p>
+            <p>
+              <strong className="text-[var(--foreground)]">Adresse :</strong>{" "}
+              {legalIdentity.address}
+            </p>
+            {legalIdentity.registration && (
+              <p>
+                <strong className="text-[var(--foreground)]">
+                  Immatriculation :
+                </strong>{" "}
+                {legalIdentity.registration}
+              </p>
+            )}
+            <p>
+              <strong className="text-[var(--foreground)]">Contact :</strong>{" "}
+              <a className="underline" href={`mailto:${legalIdentity.email}`}>
+                {legalIdentity.email}
+              </a>
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-[var(--orange)] bg-[var(--surface)] p-5">
+            <p className="font-semibold text-[var(--foreground)]">
+              Identité de l’éditeur à finaliser
+            </p>
+            <p className="mt-2">
+              Le nom ou la raison sociale, le statut, l’adresse et l’e-mail de
+              contact doivent être renseignés dans les variables légales du
+              déploiement avant l’activation publique des comptes.
+            </p>
+          </div>
+        )}
         <p>
           Contact et suivi technique :{" "}
           <a
@@ -39,6 +75,11 @@ export default function LegalPage() {
           Le service est hébergé par Vercel Inc., 440 N Barranca Ave #4133,
           Covina, CA 91723, États-Unis. Le domaine de démonstration est fourni
           par la plateforme Vercel.
+        </p>
+        <p>
+          Lorsque la synchronisation facultative est activée, l’authentification
+          et la base PostgreSQL sont opérées par Supabase. La région exacte du
+          projet devra être ajoutée ici lors de la configuration de production.
         </p>
       </ContentSection>
       <ContentSection title="Limitation méthodologique">

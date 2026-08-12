@@ -352,6 +352,9 @@ export function LandingPage() {
           >
             Mentions légales
           </Link>
+          <Link href="/compte" className="hover:text-[var(--foreground)]">
+            Mon compte
+          </Link>
         </nav>
         <p className="hidden lg:block">
           Données ADEME · Impact CO₂ · Nos Gestes Climat

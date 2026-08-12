@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { UserRound } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,11 @@ export function SiteHeader() {
         </nav>
         <div className="flex items-center gap-1.5">
           <ThemeToggle />
+          <Button asChild variant="ghost" size="icon">
+            <Link href="/compte" aria-label="Compte facultatif">
+              <UserRound size={17} />
+            </Link>
+          </Button>
           <Button
             asChild
             variant="secondary"

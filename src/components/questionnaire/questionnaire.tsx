@@ -27,7 +27,9 @@ import {
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { defaultAnswers, STORAGE_KEY } from "@/data/defaults";
+import { defaultAnswers, GOAL_STORAGE_KEY, STORAGE_KEY } from "@/data/defaults";
+import { calculateAssessment } from "@/lib/calculator";
+import { addLocalSnapshot, createAssessmentSnapshot } from "@/lib/history";
 import type { AssessmentAnswers } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -282,6 +284,16 @@ export function Questionnaire() {
     } else {
       setSaving(true);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(answers));
+      const result = calculateAssessment(answers);
+      const storedGoal = Number(localStorage.getItem(GOAL_STORAGE_KEY));
+      addLocalSnapshot(
+        createAssessmentSnapshot({
+          answers,
+          result,
+          goalKg: storedGoal >= 2000 ? storedGoal : 5000,
+          source: "questionnaire",
+        }),
+      );
       setTimeout(() => router.push("/dashboard"), 650);
     }
   };

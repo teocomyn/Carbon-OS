@@ -57,6 +57,9 @@ export function PublicPage({
             >
               Mentions légales
             </Link>
+            <Link href="/compte" className="hover:text-[var(--foreground)]">
+              Mon compte
+            </Link>
           </nav>
         </div>
       </footer>

@@ -9,6 +9,7 @@ import {
   ArrowRight,
   BarChart3,
   Check,
+  Cloud,
   ChevronDown,
   ChevronRight,
   CircleHelp,
@@ -16,6 +17,7 @@ import {
   ExternalLink,
   FileText,
   Gauge,
+  History,
   Home,
   Info,
   Layers3,
@@ -30,19 +32,41 @@ import {
   Target,
   TrainFront,
   Utensils,
+  UserRound,
   X,
   Zap,
 } from "lucide-react";
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import {
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { defaultAnswers, GOAL_STORAGE_KEY, STORAGE_KEY } from "@/data/defaults";
 import { emissionFactors, factorById } from "@/data/emission-factors";
 import { calculateAssessment } from "@/lib/calculator";
+import {
+  addLocalSnapshot,
+  calculateProgress,
+  clearLocalHistory,
+  createAssessmentSnapshot,
+  mergeHistories,
+  readLocalHistory,
+  writeLocalHistory,
+} from "@/lib/history";
 import { buildScenarios } from "@/lib/recommendations";
 import type {
   AssessmentAnswers,
+  AssessmentSnapshot,
   CalculationLine,
   EmissionCategory,
   Scenario,
@@ -61,11 +85,50 @@ const categoryIcons: Record<
 };
 const navItems = [
   { id: "overview", label: "Vue d’ensemble", icon: BarChart3 },
+  { id: "progress", label: "Progression", icon: History },
   { id: "emissions", label: "Émissions", icon: Layers3 },
   { id: "simulator", label: "Simulateur", icon: Gauge },
   { id: "actions", label: "Plan d’action", icon: Target },
   { id: "methodology", label: "Méthode & sources", icon: FileText },
 ];
+
+type SyncStatus = "checking" | "local" | "syncing" | "synced" | "error";
+
+async function syncHistoryWithCloud(
+  history: AssessmentSnapshot[],
+  goalKg: number,
+  preferCloudGoal = false,
+) {
+  const cloudResponse = await fetch("/api/sync", {
+    headers: { Accept: "application/json" },
+  });
+  if (cloudResponse.status === 401 || cloudResponse.status === 503) return null;
+  if (!cloudResponse.ok) throw new Error("sync_read_failed");
+  const cloud = (await cloudResponse.json()) as {
+    configured: boolean;
+    authenticated: boolean;
+    history: AssessmentSnapshot[];
+    goalKg: number | null;
+  };
+  if (!cloud.configured || !cloud.authenticated) return null;
+  const merged = mergeHistories(history, cloud.history);
+  const resolvedGoal =
+    preferCloudGoal && cloud.goalKg && cloud.goalKg >= 2000
+      ? cloud.goalKg
+      : goalKg;
+
+  const response = await fetch("/api/sync", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ history: merged, goalKg: resolvedGoal }),
+  });
+  if (response.status === 401 || response.status === 503) return null;
+  if (!response.ok) throw new Error("sync_failed");
+  return (await response.json()) as {
+    history: AssessmentSnapshot[];
+    goalKg: number | null;
+  };
+}
 
 function navigateTo(id: string) {
   document
@@ -409,15 +472,57 @@ export function Dashboard() {
   const [goalKg, setGoalKg] = useState(5000);
   const [goalDialogOpen, setGoalDialogOpen] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const [history, setHistory] = useState<AssessmentSnapshot[]>([]);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>("checking");
   useEffect(() => {
     const hydrationTimer = window.setTimeout(() => {
+      let loadedAnswers = defaultAnswers;
+      let loadedGoal = 5000;
+      let hasLocalGoal = false;
       try {
         const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) setAnswers({ ...defaultAnswers, ...JSON.parse(stored) });
+        if (stored) {
+          loadedAnswers = { ...defaultAnswers, ...JSON.parse(stored) };
+          setAnswers(loadedAnswers);
+        }
         const storedGoal = Number(localStorage.getItem(GOAL_STORAGE_KEY));
-        if (storedGoal >= 2000) setGoalKg(storedGoal);
+        if (storedGoal >= 2000) {
+          hasLocalGoal = true;
+          loadedGoal = storedGoal;
+          setGoalKg(storedGoal);
+        }
       } catch {}
+      let loadedHistory = readLocalHistory();
+      if (!loadedHistory.length && localStorage.getItem(STORAGE_KEY)) {
+        loadedHistory = addLocalSnapshot(
+          createAssessmentSnapshot({
+            answers: loadedAnswers,
+            result: calculateAssessment(loadedAnswers),
+            goalKg: loadedGoal,
+            source: "imported",
+          }),
+        );
+      }
+      setHistory(loadedHistory);
       setHydrated(true);
+      setSyncStatus("syncing");
+      syncHistoryWithCloud(loadedHistory, loadedGoal, !hasLocalGoal)
+        .then((cloud) => {
+          if (!cloud) {
+            setSyncStatus("local");
+            return;
+          }
+          const merged = writeLocalHistory(
+            mergeHistories(loadedHistory, cloud.history),
+          );
+          setHistory(merged);
+          if (cloud.goalKg && cloud.goalKg >= 2000) {
+            setGoalKg(cloud.goalKg);
+            localStorage.setItem(GOAL_STORAGE_KEY, String(cloud.goalKg));
+          }
+          setSyncStatus("synced");
+        })
+        .catch(() => setSyncStatus("error"));
       if (!sessionStorage.getItem("carbon-os-revealed")) {
         setReveal(true);
         sessionStorage.setItem("carbon-os-revealed", "1");
@@ -442,6 +547,15 @@ export function Dashboard() {
     .sort((a, b) => b.kgCo2e - a.kgCo2e)
     .slice(0, 5);
   const topAction = scenarios[0];
+  const progress = useMemo(() => calculateProgress(history), [history]);
+  const progressData = history.map((snapshot) => ({
+    date: new Intl.DateTimeFormat("fr-FR", {
+      day: "2-digit",
+      month: "short",
+      year: history.length > 4 ? "2-digit" : undefined,
+    }).format(new Date(snapshot.createdAt)),
+    tonnes: Number((snapshot.result.totalKg / 1000).toFixed(2)),
+  }));
   const carbonScore = Math.round(
     Math.max(0, Math.min(100, 100 - result.totalKg / 100)),
   );
@@ -454,19 +568,65 @@ export function Dashboard() {
     setAnswers(defaultAnswers);
     setActiveScenarios([]);
   };
-  const deleteAllData = () => {
+  const deleteAllData = async () => {
+    if (
+      !window.confirm(
+        syncStatus === "synced"
+          ? "Supprimer les réponses, l’historique et l’objectif sur cet appareil et dans votre compte ?"
+          : "Supprimer les réponses, l’historique et l’objectif de cet appareil ?",
+      )
+    )
+      return;
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(GOAL_STORAGE_KEY);
+    clearLocalHistory();
     setAnswers(defaultAnswers);
     setGoalKg(5000);
+    setHistory([]);
     setActiveScenarios([]);
-    setFeedback("Données locales supprimées");
+    if (syncStatus === "synced") {
+      const response = await fetch("/api/sync", { method: "DELETE" });
+      setFeedback(
+        response.ok
+          ? "Données locales et synchronisées supprimées"
+          : "Données locales supprimées — suppression distante à réessayer",
+      );
+    } else {
+      setFeedback("Données locales supprimées");
+    }
   };
   const saveGoal = (value: number) => {
     setGoalKg(value);
     localStorage.setItem(GOAL_STORAGE_KEY, String(value));
     setGoalDialogOpen(false);
     setFeedback(`Objectif enregistré : ${formatTons(value)} t en 2030`);
+    if (syncStatus === "synced") {
+      setSyncStatus("syncing");
+      syncHistoryWithCloud(history, value)
+        .then(() => setSyncStatus("synced"))
+        .catch(() => setSyncStatus("error"));
+    }
+  };
+  const saveCurrentAssessment = () => {
+    const updatedHistory = addLocalSnapshot(
+      createAssessmentSnapshot({
+        answers,
+        result: calculateAssessment(answers),
+        goalKg,
+        source: "manual",
+      }),
+    );
+    setHistory(updatedHistory);
+    setFeedback("Nouveau point de progression enregistré");
+    if (syncStatus === "synced") {
+      setSyncStatus("syncing");
+      syncHistoryWithCloud(updatedHistory, goalKg)
+        .then((cloud) => {
+          if (cloud) setHistory(writeLocalHistory(cloud.history));
+          setSyncStatus("synced");
+        })
+        .catch(() => setSyncStatus("error"));
+    }
   };
   const exportData = () => {
     downloadJson("carbon-os-bilan-2026.json", {
@@ -474,6 +634,7 @@ export function Dashboard() {
       answers,
       result,
       goal: { targetKg: goalKg, year: 2030 },
+      history,
     });
     setFeedback("Bilan exporté au format JSON");
   };
@@ -602,6 +763,20 @@ export function Dashboard() {
           </button>
           <ThemeToggle />
         </div>
+        <Link
+          href="/compte"
+          className="mt-4 flex items-center justify-between rounded-xl px-2 py-2 text-xs text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface)] hover:text-[var(--foreground)]"
+        >
+          <span className="flex items-center gap-2">
+            <Cloud size={14} />
+            {syncStatus === "synced"
+              ? "Synchronisé"
+              : syncStatus === "syncing" || syncStatus === "checking"
+                ? "Synchronisation…"
+                : "Données locales"}
+          </span>
+          <ChevronRight size={13} />
+        </Link>
       </aside>
       <header className="sticky top-0 z-30 border-b border-[var(--border)] bg-[color:var(--background)/.86] backdrop-blur-xl lg:ml-[248px]">
         <div className="flex h-[68px] items-center justify-between px-5 lg:px-8">
@@ -623,6 +798,11 @@ export function Dashboard() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button asChild variant="ghost" size="icon">
+              <Link href="/compte" aria-label="Compte et synchronisation">
+                <UserRound size={17} />
+              </Link>
+            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -812,6 +992,188 @@ export function Dashboard() {
                 icon={Leaf}
                 accent
               />
+            </div>
+          </section>
+
+          <section id="progress" className="scroll-mt-24 pt-24">
+            <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+              <div>
+                <p className="eyebrow">Suivre</p>
+                <h2 className="mt-3 text-3xl font-semibold tracking-[-.045em]">
+                  Votre progression, bilan après bilan.
+                </h2>
+                <p className="mt-3 max-w-[620px] text-sm leading-6 text-[var(--muted-foreground)]">
+                  Chaque nouveau calcul crée un point daté. Le suivi reste dans
+                  ce navigateur sans compte et se fusionne si vous activez la
+                  synchronisation.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Button asChild variant="secondary">
+                  <Link href="/compte">
+                    <Cloud size={15} />
+                    {syncStatus === "synced"
+                      ? "Compte synchronisé"
+                      : "Synchroniser"}
+                  </Link>
+                </Button>
+                <Button variant="accent" onClick={saveCurrentAssessment}>
+                  Enregistrer ce bilan
+                </Button>
+              </div>
+            </div>
+
+            <div className="mt-7 grid gap-5 sm:grid-cols-3">
+              <MetricCard
+                label="Bilans enregistrés"
+                value={String(history.length)}
+                note={
+                  history.length > 1 ? "Points comparables" : "Point de départ"
+                }
+                icon={History}
+              />
+              <MetricCard
+                label="Évolution depuis le début"
+                value={
+                  history.length > 1
+                    ? `${progress.changeKg <= 0 ? "−" : "+"}${formatKg(Math.abs(progress.changeKg))}`
+                    : "—"
+                }
+                note={
+                  history.length > 1
+                    ? `${Math.abs(progress.changePercent).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} % ${progress.changeKg <= 0 ? "de réduction" : "d’augmentation"}`
+                    : "Ajoutez un prochain bilan"
+                }
+                icon={ArrowDown}
+                accent={history.length > 1 && progress.changeKg < 0}
+              />
+              <MetricCard
+                label="Meilleur bilan"
+                value={
+                  progress.best
+                    ? `${formatTons(progress.best.result.totalKg)} t`
+                    : "—"
+                }
+                note={
+                  progress.best
+                    ? new Intl.DateTimeFormat("fr-FR", {
+                        dateStyle: "medium",
+                      }).format(new Date(progress.best.createdAt))
+                    : "Aucune donnée"
+                }
+                icon={Target}
+              />
+            </div>
+
+            <div className="mt-5 grid gap-5 xl:grid-cols-[1.25fr_.75fr]">
+              <div className="panel p-5 sm:p-7">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold">
+                      Empreinte dans le temps
+                    </p>
+                    <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                      Tonnes CO₂e par an
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-[var(--surface)] px-3 py-1.5 text-[10px] font-semibold text-[var(--muted-foreground)]">
+                    {syncStatus === "synced"
+                      ? "Cloud chiffré en transit"
+                      : syncStatus === "error"
+                        ? "Synchronisation à réessayer"
+                        : "Stockage local"}
+                  </span>
+                </div>
+                <div
+                  className="mt-7 h-[260px]"
+                  aria-label="Courbe de progression carbone"
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={progressData}
+                      margin={{ top: 8, right: 8, left: -18, bottom: 0 }}
+                    >
+                      <CartesianGrid
+                        stroke="var(--border)"
+                        strokeDasharray="3 6"
+                        vertical={false}
+                      />
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <YAxis
+                        domain={[0, "auto"]}
+                        tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <Tooltip
+                        formatter={(value) => [
+                          `${Number(value).toLocaleString("fr-FR")} t`,
+                          "Empreinte",
+                        ]}
+                        contentStyle={{
+                          background: "var(--card)",
+                          border: "1px solid var(--border)",
+                          borderRadius: 12,
+                          fontSize: 12,
+                        }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="tonnes"
+                        stroke="var(--accent)"
+                        strokeWidth={3}
+                        dot={{ r: 4, fill: "var(--accent)", strokeWidth: 0 }}
+                        activeDot={{ r: 6 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="panel overflow-hidden">
+                <div className="border-b border-[var(--border)] p-5 sm:p-6">
+                  <p className="text-sm font-semibold">Historique récent</p>
+                  <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                    Jusqu’à 50 bilans conservés
+                  </p>
+                </div>
+                <div>
+                  {[...history]
+                    .reverse()
+                    .slice(0, 5)
+                    .map((snapshot, index) => (
+                      <div
+                        key={snapshot.id}
+                        className="flex items-center justify-between gap-4 border-b border-[var(--border)] px-5 py-4 last:border-0 sm:px-6"
+                      >
+                        <div>
+                          <p className="text-xs font-semibold">
+                            {index === 0 ? "Dernier bilan" : "Bilan précédent"}
+                          </p>
+                          <p className="mt-1 text-[10px] text-[var(--muted-foreground)]">
+                            {new Intl.DateTimeFormat("fr-FR", {
+                              dateStyle: "medium",
+                              timeStyle: "short",
+                            }).format(new Date(snapshot.createdAt))}
+                          </p>
+                        </div>
+                        <p className="text-lg font-semibold tracking-[-.04em]">
+                          {formatTons(snapshot.result.totalKg)} t
+                        </p>
+                      </div>
+                    ))}
+                  {!history.length && (
+                    <p className="p-6 text-sm leading-6 text-[var(--muted-foreground)]">
+                      Votre premier bilan apparaîtra ici après le questionnaire.
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
           </section>
 
@@ -1093,7 +1455,8 @@ export function Dashboard() {
                           </Dialog.Title>
                           <Dialog.Description className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
                             Choisissez une cible ambitieuse mais réaliste. Elle
-                            restera uniquement dans ce navigateur.
+                            reste locale sans compte et se synchronise si vous
+                            l’avez activé.
                           </Dialog.Description>
                         </div>
                         <Dialog.Close asChild>
@@ -1257,8 +1620,9 @@ export function Dashboard() {
             </div>
             <div className="mt-5 flex flex-col justify-between gap-4 rounded-2xl bg-[var(--surface)] p-5 text-xs text-[var(--muted-foreground)] sm:flex-row sm:items-center">
               <p>
-                Vos réponses sont enregistrées localement dans ce navigateur.
-                Aucun compte n’a été créé.
+                {syncStatus === "synced"
+                  ? "Vos réponses et votre historique sont synchronisés avec votre compte."
+                  : "Vos réponses et votre historique restent dans ce navigateur. Aucun compte n’est requis."}
               </p>
               <div className="flex gap-4">
                 <button

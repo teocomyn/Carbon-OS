@@ -91,3 +91,14 @@ export interface Scenario {
   cost: "Économie" | "Neutre" | "Investissement";
   icon: string;
 }
+
+export type AssessmentSource = "questionnaire" | "manual" | "imported";
+
+export interface AssessmentSnapshot {
+  id: string;
+  createdAt: string;
+  source: AssessmentSource;
+  answers: AssessmentAnswers;
+  result: AssessmentResult;
+  goalKg: number;
+}
