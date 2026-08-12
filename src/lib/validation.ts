@@ -58,12 +58,19 @@ export const actionPlanItemSchema = z.object({
   scenarioId: z.string().min(1).max(64),
   status: z.enum(["to_try", "in_progress", "completed"]),
   startedAt: z.iso.date().nullable(),
+  completedAt: z.iso.datetime().nullable().optional().default(null),
   addedAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
+  title: z.string().min(1).max(180).optional(),
+  description: z.string().min(1).max(500).optional(),
+  estimatedSavingKg: z.number().min(0).max(100_000).optional(),
+  effort: z.enum(["Faible", "Modéré", "Élevé"]).optional(),
+  cost: z.enum(["Économie", "Neutre", "Investissement"]).optional(),
+  rationale: z.string().min(1).max(1_000).optional(),
 });
 
 export const syncRequestSchema = z.object({
   history: z.array(syncSnapshotSchema).max(50),
   goalKg: z.number().int().min(500).max(100_000),
-  actionPlan: z.array(actionPlanItemSchema).max(3),
+  actionPlan: z.array(actionPlanItemSchema).max(23),
 });

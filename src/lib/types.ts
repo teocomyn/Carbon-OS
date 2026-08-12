@@ -1,9 +1,5 @@
 export type EmissionCategory =
-  | "transport"
-  | "housing"
-  | "food"
-  | "purchases"
-  | "services";
+  "transport" | "housing" | "food" | "purchases" | "services";
 
 export type Confidence = "high" | "medium" | "low";
 
@@ -99,8 +95,15 @@ export interface ActionPlanItem {
   scenarioId: string;
   status: ActionPlanStatus;
   startedAt: string | null;
+  completedAt: string | null;
   addedAt: string;
   updatedAt: string;
+  title?: string;
+  description?: string;
+  estimatedSavingKg?: number;
+  effort?: Scenario["effort"];
+  cost?: Scenario["cost"];
+  rationale?: string;
 }
 
 export type AssessmentSource = "questionnaire" | "manual" | "imported";

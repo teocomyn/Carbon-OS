@@ -60,14 +60,13 @@ import {
 import { emissionFactors, factorById } from "@/data/emission-factors";
 import { calculateAssessment } from "@/lib/calculator";
 import {
+  completedActionsSince,
+  MAX_ACTIVE_ACTIONS,
   mergeActionPlans,
   normalizeActionPlan,
   parseActionPlan,
 } from "@/lib/action-plan";
-import {
-  secondAssessmentDelay,
-  trackCarbonEvent,
-} from "@/lib/analytics";
+import { secondAssessmentDelay, trackCarbonEvent } from "@/lib/analytics";
 import {
   addLocalSnapshot,
   calculateProgress,
@@ -79,6 +78,10 @@ import {
 } from "@/lib/history";
 import { buildScenarios } from "@/lib/recommendations";
 import { CARBON_SIGNAL_VIDEO } from "@/lib/media";
+import {
+  buildProgressStory,
+  recommendedAssessmentWindow,
+} from "@/lib/progress-story";
 import type {
   ActionPlanItem,
   ActionPlanStatus,
@@ -100,6 +103,49 @@ const categoryIcons: Record<
   purchases: ShoppingBag,
   services: Layers3,
 };
+
+function resolvePlanScenario(
+  item: ActionPlanItem,
+  current?: Scenario,
+): Scenario {
+  return {
+    id: item.scenarioId,
+    title: item.title ?? current?.title ?? "Action personnelle",
+    description:
+      item.description ??
+      current?.description ??
+      "Une action conservée dans votre historique personnel.",
+    savingKg: item.estimatedSavingKg ?? current?.savingKg ?? 0,
+    effort: item.effort ?? current?.effort ?? "Modéré",
+    cost: item.cost ?? current?.cost ?? "Neutre",
+    icon: current?.icon ?? "sparkles",
+    rationale:
+      item.rationale ??
+      current?.rationale ??
+      "Vous aviez choisi cette action comme un levier pertinent pour votre situation.",
+  };
+}
+
+function enrichActionPlan(items: ActionPlanItem[], scenarios: Scenario[]) {
+  return normalizeActionPlan(
+    items.map((item) => {
+      const scenario = scenarios.find(
+        (candidate) => candidate.id === item.scenarioId,
+      );
+      if (!scenario) return item;
+      return {
+        ...item,
+        title: item.title ?? scenario.title,
+        description: item.description ?? scenario.description,
+        estimatedSavingKg: item.estimatedSavingKg ?? scenario.savingKg,
+        effort: item.effort ?? scenario.effort,
+        cost: item.cost ?? scenario.cost,
+        rationale: item.rationale ?? scenario.rationale,
+      };
+    }),
+  );
+}
+
 type DashboardView = "today" | "act" | "progress" | "understand";
 
 const navItems: {
@@ -418,14 +464,14 @@ function ScenarioCard({
   scenario,
   active,
   onToggle,
-  inPlan,
+  planStatus,
   planFull,
   onAddToPlan,
 }: {
   scenario: Scenario;
   active: boolean;
   onToggle: () => void;
-  inPlan: boolean;
+  planStatus?: ActionPlanStatus;
   planFull: boolean;
   onAddToPlan: () => void;
 }) {
@@ -496,14 +542,16 @@ function ScenarioCard({
         <button
           type="button"
           onClick={onAddToPlan}
-          disabled={inPlan || planFull}
+          disabled={Boolean(planStatus) || planFull}
           className="text-xs font-semibold text-[var(--accent)] disabled:text-[var(--muted-foreground)]"
         >
-          {inPlan
-            ? "Ajoutée à mon plan"
-            : planFull
-              ? "Plan complet · 3 actions"
-              : "+ Ajouter à mon plan"}
+          {planStatus === "completed"
+            ? "Action réalisée"
+            : planStatus
+              ? "Ajoutée à mon plan"
+              : planFull
+                ? "Plan complet · 3 actions"
+                : "+ Ajouter à mon plan"}
         </button>
       </div>
     </div>
@@ -552,9 +600,11 @@ export function Dashboard() {
         setActiveView(requestedView);
       }
       let loadedHistory = readLocalHistory();
-      const loadedPlan = parseActionPlan(
-        localStorage.getItem(ACTION_PLAN_STORAGE_KEY),
+      const loadedPlan = enrichActionPlan(
+        parseActionPlan(localStorage.getItem(ACTION_PLAN_STORAGE_KEY)),
+        buildScenarios(loadedAnswers),
       );
+      localStorage.setItem(ACTION_PLAN_STORAGE_KEY, JSON.stringify(loadedPlan));
       setActionPlan(loadedPlan);
       if (!loadedHistory.length && localStorage.getItem(STORAGE_KEY)) {
         loadedHistory = addLocalSnapshot(
@@ -569,12 +619,7 @@ export function Dashboard() {
       setHistory(loadedHistory);
       setHydrated(true);
       setSyncStatus("syncing");
-      syncHistoryWithCloud(
-        loadedHistory,
-        loadedGoal,
-        loadedPlan,
-        !hasLocalGoal,
-      )
+      syncHistoryWithCloud(loadedHistory, loadedGoal, loadedPlan, !hasLocalGoal)
         .then((cloud) => {
           if (!cloud) {
             setSyncStatus("local");
@@ -584,9 +629,9 @@ export function Dashboard() {
             mergeHistories(loadedHistory, cloud.history),
           );
           setHistory(merged);
-          const mergedPlan = mergeActionPlans(
-            loadedPlan,
-            cloud.actionPlan ?? [],
+          const mergedPlan = enrichActionPlan(
+            mergeActionPlans(loadedPlan, cloud.actionPlan ?? []),
+            buildScenarios(loadedAnswers),
           );
           setActionPlan(mergedPlan);
           localStorage.setItem(
@@ -619,19 +664,40 @@ export function Dashboard() {
     .sort((a, b) => b.kgCo2e - a.kgCo2e)
     .slice(0, 5);
   const topAction = scenarios[0];
-  const plannedActions = actionPlan
-    .map((item) => ({
+  const plannedActions = actionPlan.map((item) => ({
+    item,
+    scenario: resolvePlanScenario(
       item,
-      scenario: scenarios.find((scenario) => scenario.id === item.scenarioId),
-    }))
-    .filter(
-      (entry): entry is { item: ActionPlanItem; scenario: Scenario } =>
-        Boolean(entry.scenario),
-    );
-  const weeklyPriority =
-    plannedActions.find(({ item }) => item.status !== "completed")?.scenario ??
-    topAction;
+      scenarios.find((scenario) => scenario.id === item.scenarioId),
+    ),
+  }));
+  const activePlannedActions = plannedActions.filter(
+    ({ item }) => item.status !== "completed",
+  );
+  const completedPlannedActions = plannedActions.filter(
+    ({ item }) => item.status === "completed",
+  );
+  const weeklyPriority = activePlannedActions[0]?.scenario ?? topAction;
   const progress = useMemo(() => calculateProgress(history), [history]);
+  const progressStory = useMemo(() => buildProgressStory(history), [history]);
+  const nextAssessmentWindow = progress.latest
+    ? recommendedAssessmentWindow(progress.latest.createdAt)
+    : null;
+  const meaningfulCategoryChanges =
+    progressStory?.categoryChanges
+      .filter((category) => Math.abs(category.changeKg) >= 1)
+      .slice(0, 3) ?? [];
+  const completedSincePrevious = progressStory
+    ? completedActionsSince(actionPlan, progressStory.previous.createdAt).map(
+        (item) => ({
+          item,
+          scenario: resolvePlanScenario(
+            item,
+            scenarios.find((scenario) => scenario.id === item.scenarioId),
+          ),
+        }),
+      )
+    : [];
   const progressData = history.map((snapshot) => ({
     date: new Intl.DateTimeFormat("fr-FR", {
       day: "2-digit",
@@ -746,9 +812,9 @@ export function Dashboard() {
           mergeHistories(history, cloud.history),
         );
         setHistory(merged);
-        const mergedPlan = mergeActionPlans(
-          actionPlan,
-          cloud.actionPlan ?? [],
+        const mergedPlan = enrichActionPlan(
+          mergeActionPlans(actionPlan, cloud.actionPlan ?? []),
+          scenarios,
         );
         setActionPlan(mergedPlan);
         localStorage.setItem(
@@ -783,7 +849,7 @@ export function Dashboard() {
   const addToPlan = (scenario: Scenario) => {
     if (
       actionPlan.some((item) => item.scenarioId === scenario.id) ||
-      actionPlan.length >= 3
+      activePlannedActions.length >= MAX_ACTIVE_ACTIONS
     )
       return;
     const now = new Date().toISOString();
@@ -793,8 +859,15 @@ export function Dashboard() {
         scenarioId: scenario.id,
         status: "to_try",
         startedAt: null,
+        completedAt: null,
         addedAt: now,
         updatedAt: now,
+        title: scenario.title,
+        description: scenario.description,
+        estimatedSavingKg: scenario.savingKg,
+        effort: scenario.effort,
+        cost: scenario.cost,
+        rationale: scenario.rationale,
       },
     ]);
     setFeedback("Action ajoutée à votre plan");
@@ -805,7 +878,9 @@ export function Dashboard() {
   };
   const updatePlanItem = (
     scenarioId: string,
-    changes: Partial<Pick<ActionPlanItem, "status" | "startedAt">>,
+    changes: Partial<
+      Pick<ActionPlanItem, "status" | "startedAt" | "completedAt">
+    >,
   ) => {
     persistPlan(
       actionPlan.map((item) =>
@@ -815,10 +890,34 @@ export function Dashboard() {
       ),
     );
   };
-  const removeFromPlan = (scenarioId: string) => {
-    persistPlan(
-      actionPlan.filter((item) => item.scenarioId !== scenarioId),
+  const changePlanStatus = (item: ActionPlanItem, status: ActionPlanStatus) => {
+    if (
+      item.status === "completed" &&
+      status !== "completed" &&
+      activePlannedActions.length >= MAX_ACTIVE_ACTIONS
+    ) {
+      setFeedback("Votre plan actif contient déjà trois actions");
+      return;
+    }
+    const now = new Date().toISOString();
+    updatePlanItem(item.scenarioId, {
+      status,
+      startedAt:
+        status === "in_progress"
+          ? (item.startedAt ?? now.slice(0, 10))
+          : item.startedAt,
+      completedAt: status === "completed" ? (item.completedAt ?? now) : null,
+    });
+    setFeedback(
+      status === "completed"
+        ? "Action marquée comme réalisée"
+        : status === "in_progress"
+          ? "Action passée en cours"
+          : "Action remise dans À essayer",
     );
+  };
+  const removeFromPlan = (scenarioId: string) => {
+    persistPlan(actionPlan.filter((item) => item.scenarioId !== scenarioId));
     setFeedback("Action retirée du plan");
   };
   const exportData = () => {
@@ -953,7 +1052,12 @@ export function Dashboard() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button asChild variant="ghost" size="icon" className="hidden sm:inline-flex">
+            <Button
+              asChild
+              variant="ghost"
+              size="icon"
+              className="hidden sm:inline-flex"
+            >
               <Link href="/compte" aria-label="Compte et synchronisation">
                 <UserRound size={17} />
               </Link>
@@ -1109,8 +1213,8 @@ export function Dashboard() {
                       Votre priorité cette semaine
                     </p>
                     <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                      {plannedActions.length
-                        ? `${plannedActions.length} action${plannedActions.length > 1 ? "s" : ""} dans votre plan`
+                      {activePlannedActions.length
+                        ? `${activePlannedActions.length} action${activePlannedActions.length > 1 ? "s" : ""} active${activePlannedActions.length > 1 ? "s" : ""}`
                         : "Meilleur potentiel actuel"}
                     </p>
                   </div>
@@ -1138,7 +1242,7 @@ export function Dashboard() {
                         className="mt-5 w-full"
                         onClick={() => changeView("act")}
                       >
-                        {plannedActions.length
+                        {activePlannedActions.length
                           ? "Voir mon plan"
                           : "Choisir une action"}
                         <ArrowRight size={15} />
@@ -1173,7 +1277,10 @@ export function Dashboard() {
 
           <section
             id="progress"
-            className={cn("scroll-mt-24", activeView !== "progress" && "hidden")}
+            className={cn(
+              "scroll-mt-24",
+              activeView !== "progress" && "hidden",
+            )}
           >
             <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
               <div>
@@ -1202,6 +1309,188 @@ export function Dashboard() {
               </div>
             </div>
 
+            <div className="mt-7 grid gap-5 xl:grid-cols-[1.3fr_.7fr]">
+              <div className="panel overflow-hidden p-6 sm:p-8">
+                {progressStory ? (
+                  <>
+                    <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-start">
+                      <div>
+                        <p className="eyebrow">
+                          Depuis le{" "}
+                          {new Intl.DateTimeFormat("fr-FR", {
+                            dateStyle: "medium",
+                          }).format(new Date(progressStory.previous.createdAt))}
+                        </p>
+                        <h3 className="mt-4 max-w-[720px] text-3xl font-semibold leading-tight tracking-[-.045em] sm:text-4xl">
+                          {progressStory.changeKg < -1
+                            ? `Votre empreinte a diminué de ${formatKg(Math.abs(progressStory.changeKg))}.`
+                            : progressStory.changeKg > 1
+                              ? `Votre empreinte a augmenté de ${formatKg(progressStory.changeKg)}.`
+                              : "Votre empreinte est restée stable."}
+                        </h3>
+                        <p className="mt-4 max-w-[720px] text-sm leading-6 text-[var(--muted-foreground)]">
+                          {progressStory.primaryCategory &&
+                            Math.abs(progressStory.primaryCategory.changeKg) >=
+                              1 && (
+                              <>
+                                La principale évolution vient du poste «{" "}
+                                {progressStory.primaryCategory.label} » (
+                                {progressStory.primaryCategory.changeKg < 0
+                                  ? "−"
+                                  : "+"}
+                                {formatKg(
+                                  Math.abs(
+                                    progressStory.primaryCategory.changeKg,
+                                  ),
+                                )}
+                                ).{" "}
+                              </>
+                            )}
+                          {progressStory.changeKg > 1
+                            ? "Ce n’est pas un échec : ce bilan rend le changement visible et vous aide à choisir la prochaine action utile."
+                            : progressStory.changeKg < -1
+                              ? "C’est une évolution encourageante. Continuez avec une action réaliste à la fois."
+                              : "Cette stabilité constitue un point de repère fiable pour la suite."}
+                        </p>
+                      </div>
+                      <span
+                        className={cn(
+                          "grid size-12 shrink-0 place-items-center rounded-2xl",
+                          progressStory.changeKg <= 0
+                            ? "bg-[var(--positive-soft)] text-[var(--positive)]"
+                            : "bg-[var(--surface)] text-[var(--muted-foreground)]",
+                        )}
+                      >
+                        <ArrowDown
+                          size={21}
+                          className={
+                            progressStory.changeKg > 0
+                              ? "rotate-180"
+                              : undefined
+                          }
+                        />
+                      </span>
+                    </div>
+
+                    <div className="mt-8 grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-2xl bg-[var(--surface)] p-4">
+                        <p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--muted-foreground)]">
+                          Bilan précédent
+                        </p>
+                        <p className="mt-2 text-2xl font-semibold tracking-[-.04em]">
+                          {formatTons(progressStory.previous.result.totalKg)} t
+                        </p>
+                      </div>
+                      <div className="rounded-2xl bg-[var(--accent-soft)] p-4">
+                        <p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--accent)]">
+                          Dernier bilan
+                        </p>
+                        <p className="mt-2 text-2xl font-semibold tracking-[-.04em]">
+                          {formatTons(progressStory.latest.result.totalKg)} t
+                        </p>
+                      </div>
+                    </div>
+
+                    {meaningfulCategoryChanges.length > 0 && (
+                      <div className="mt-8 border-t border-[var(--border)] pt-6">
+                        <p className="text-xs font-semibold">
+                          Ce qui a le plus évolué
+                        </p>
+                        <div className="mt-4 space-y-3">
+                          {meaningfulCategoryChanges.map((category) => (
+                            <div
+                              key={category.category}
+                              className="flex items-center justify-between gap-4 text-sm"
+                            >
+                              <span className="text-[var(--muted-foreground)]">
+                                {category.label}
+                              </span>
+                              <span
+                                className={cn(
+                                  "font-semibold",
+                                  category.changeKg < 0 &&
+                                    "text-[var(--positive)]",
+                                )}
+                              >
+                                {category.changeKg < 0 ? "−" : "+"}
+                                {formatKg(Math.abs(category.changeKg))}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="mt-8 border-t border-[var(--border)] pt-6">
+                      <p className="text-xs font-semibold">
+                        Actions réalisées depuis le bilan précédent
+                      </p>
+                      {completedSincePrevious.length ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {completedSincePrevious.map(({ item, scenario }) => (
+                            <span
+                              key={item.scenarioId}
+                              className="inline-flex items-center gap-2 rounded-full bg-[var(--positive-soft)] px-3 py-1.5 text-xs font-medium text-[var(--positive)]"
+                            >
+                              <Check size={12} /> {scenario.title}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-xs leading-5 text-[var(--muted-foreground)]">
+                          Quand vous terminerez une action, elle apparaîtra ici
+                          pour relier vos efforts à votre progression.
+                        </p>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex min-h-[260px] flex-col justify-between">
+                    <div>
+                      <p className="eyebrow">Votre point de départ</p>
+                      <h3 className="mt-4 text-3xl font-semibold tracking-[-.045em] sm:text-4xl">
+                        Votre histoire commence avec ce bilan.
+                      </h3>
+                      <p className="mt-4 max-w-[650px] text-sm leading-6 text-[var(--muted-foreground)]">
+                        Il n’y a encore rien à comparer, et c’est normal. Votre
+                        prochain bilan permettra d’expliquer précisément ce qui
+                        a évolué, catégorie par catégorie.
+                      </p>
+                    </div>
+                    {progress.latest && (
+                      <p className="mt-8 text-2xl font-semibold tracking-[-.04em] text-[var(--accent)]">
+                        Point de départ ·{" "}
+                        {formatTons(progress.latest.result.totalKg)} t CO₂e/an
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="panel flex flex-col p-6 sm:p-8">
+                <span className="grid size-11 place-items-center rounded-2xl bg-[var(--accent-soft)] text-[var(--accent)]">
+                  <CalendarDays size={19} />
+                </span>
+                <p className="mt-8 text-sm font-semibold">
+                  Prochain bilan conseillé
+                </p>
+                <h3 className="mt-3 text-2xl font-semibold leading-tight tracking-[-.035em]">
+                  {nextAssessmentWindow
+                    ? `Entre ${new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(new Date(nextAssessmentWindow.start))} et ${new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(new Date(nextAssessmentWindow.end))}`
+                    : "Dans trois à six mois"}
+                </h3>
+                <p className="mt-4 text-sm leading-6 text-[var(--muted-foreground)]">
+                  Ce délai laisse le temps aux habitudes de changer sans vous
+                  demander de suivre chaque détail au quotidien.
+                </p>
+                <Button asChild variant="secondary" className="mt-auto">
+                  <Link href="/questionnaire">
+                    Refaire mon bilan <ArrowRight size={15} />
+                  </Link>
+                </Button>
+              </div>
+            </div>
+
             <div className="mt-7 grid gap-5 sm:grid-cols-3">
               <MetricCard
                 label="Bilans enregistrés"
@@ -1212,19 +1501,23 @@ export function Dashboard() {
                 icon={History}
               />
               <MetricCard
-                label="Évolution depuis le début"
+                label="Depuis le bilan précédent"
                 value={
-                  history.length > 1
-                    ? `${progress.changeKg <= 0 ? "−" : "+"}${formatKg(Math.abs(progress.changeKg))}`
+                  progressStory
+                    ? Math.abs(progressStory.changeKg) < 1
+                      ? "Stable"
+                      : `${progressStory.changeKg < 0 ? "−" : "+"}${formatKg(Math.abs(progressStory.changeKg))}`
                     : "—"
                 }
                 note={
-                  history.length > 1
-                    ? `${Math.abs(progress.changePercent).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} % ${progress.changeKg <= 0 ? "de réduction" : "d’augmentation"}`
-                    : "Ajoutez un prochain bilan"
+                  progressStory
+                    ? Math.abs(progressStory.changeKg) < 1
+                      ? "Variation inférieure à 1 kg"
+                      : `${Math.abs(progressStory.changePercent).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} % ${progressStory.changeKg < 0 ? "de réduction" : "d’augmentation"}`
+                    : "Un second bilan permettra la comparaison"
                 }
                 icon={ArrowDown}
-                accent={history.length > 1 && progress.changeKg < 0}
+                accent={Boolean(progressStory && progressStory.changeKg < 0)}
               />
               <MetricCard
                 label="Meilleur bilan"
@@ -1368,7 +1661,10 @@ export function Dashboard() {
 
           <section
             id="emissions"
-            className={cn("scroll-mt-24", activeView !== "understand" && "hidden")}
+            className={cn(
+              "scroll-mt-24",
+              activeView !== "understand" && "hidden",
+            )}
           >
             <div className="flex items-end justify-between">
               <div>
@@ -1496,16 +1792,17 @@ export function Dashboard() {
             </div>
             <div className="mt-7 grid gap-5 xl:grid-cols-[1fr_.72fr]">
               <div className="grid gap-3 md:grid-cols-2">
-                {scenarios.slice(0, 3).map((s) => (
+                {scenarios.slice(0, 6).map((s) => (
                   <ScenarioCard
                     key={s.id}
                     scenario={s}
                     active={activeScenarios.includes(s.id)}
                     onToggle={() => toggleScenario(s.id)}
-                    inPlan={actionPlan.some(
-                      (item) => item.scenarioId === s.id,
-                    )}
-                    planFull={actionPlan.length >= 3}
+                    planStatus={
+                      actionPlan.find((item) => item.scenarioId === s.id)
+                        ?.status
+                    }
+                    planFull={activePlannedActions.length >= MAX_ACTIVE_ACTIONS}
                     onAddToPlan={() => addToPlan(s)}
                   />
                 ))}
@@ -1591,97 +1888,113 @@ export function Dashboard() {
                 <div>
                   <p className="text-sm font-semibold">Mon plan personnel</p>
                   <p className="mt-2 max-w-[600px] text-sm leading-6 text-[var(--muted-foreground)]">
-                    Trois actions maximum pour rester concentré. Leur état et
-                    leur date restent privés, puis se synchronisent avec votre
-                    compte si vous l’activez.
+                    Trois actions actives maximum pour rester concentré. Les
+                    actions réalisées restent dans votre historique sans bloquer
+                    la suite.
                   </p>
                 </div>
                 <span className="shrink-0 rounded-full bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold">
-                  {actionPlan.length} / 3 actions
+                  {activePlannedActions.length} / {MAX_ACTIVE_ACTIONS} actives
                 </span>
               </div>
+              {completedPlannedActions.length > 0 && (
+                <p className="mt-4 text-xs text-[var(--muted-foreground)]">
+                  {completedPlannedActions.length} action
+                  {completedPlannedActions.length > 1 ? "s" : ""} réalisée
+                  {completedPlannedActions.length > 1 ? "s" : ""} conservée
+                  {completedPlannedActions.length > 1 ? "s" : ""} dans votre
+                  historique.
+                </p>
+              )}
               {plannedActions.length ? (
                 <div className="divide-y divide-[var(--border)]">
-                  {plannedActions.map(({ item, scenario }) => (
-                    <article
-                      key={scenario.id}
-                      className="grid gap-5 py-7 lg:grid-cols-[1fr_230px]"
-                    >
-                      <div>
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <h3 className="text-lg font-semibold tracking-[-.025em]">
-                            {scenario.title}
-                          </h3>
-                          <span className="text-sm font-semibold text-[var(--positive)]">
-                            −{formatKg(scenario.savingKg)} / an
-                          </span>
+                  {[...activePlannedActions, ...completedPlannedActions].map(
+                    ({ item, scenario }) => (
+                      <article
+                        key={scenario.id}
+                        className="grid gap-5 py-7 lg:grid-cols-[1fr_230px]"
+                      >
+                        <div>
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <h3 className="text-lg font-semibold tracking-[-.025em]">
+                              {scenario.title}
+                            </h3>
+                            <span className="text-sm font-semibold text-[var(--positive)]">
+                              −{formatKg(scenario.savingKg)} / an
+                            </span>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2 text-[10px]">
+                            <span className="rounded-full bg-[var(--surface)] px-2.5 py-1">
+                              Effort {scenario.effort.toLowerCase()}
+                            </span>
+                            <span className="rounded-full bg-[var(--surface)] px-2.5 py-1">
+                              Budget · {scenario.cost.toLowerCase()}
+                            </span>
+                          </div>
+                          <details className="group mt-5 text-sm">
+                            <summary className="cursor-pointer list-none font-semibold text-[var(--accent)]">
+                              Pourquoi cette action pour vous ?
+                            </summary>
+                            <p className="mt-2 max-w-[700px] leading-6 text-[var(--muted-foreground)]">
+                              {scenario.rationale}
+                            </p>
+                          </details>
                         </div>
-                        <div className="mt-3 flex flex-wrap gap-2 text-[10px]">
-                          <span className="rounded-full bg-[var(--surface)] px-2.5 py-1">
-                            Effort {scenario.effort.toLowerCase()}
-                          </span>
-                          <span className="rounded-full bg-[var(--surface)] px-2.5 py-1">
-                            Budget · {scenario.cost.toLowerCase()}
-                          </span>
-                        </div>
-                        <details className="group mt-5 text-sm">
-                          <summary className="cursor-pointer list-none font-semibold text-[var(--accent)]">
-                            Pourquoi cette action pour vous ?
-                          </summary>
-                          <p className="mt-2 max-w-[700px] leading-6 text-[var(--muted-foreground)]">
-                            {scenario.rationale}
-                          </p>
-                        </details>
-                      </div>
-                      <div className="space-y-3">
-                        <label className="block text-xs font-medium text-[var(--muted-foreground)]">
-                          État
-                          <select
-                            value={item.status}
-                            onChange={(event) => {
-                              const status = event.target
-                                .value as ActionPlanStatus;
-                              updatePlanItem(scenario.id, {
-                                status,
-                                startedAt:
-                                  status === "in_progress"
-                                    ? item.startedAt ??
-                                      new Date().toISOString().slice(0, 10)
-                                    : item.startedAt,
-                              });
-                            }}
-                            className="mt-1.5 h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 text-sm font-semibold outline-none focus:border-[var(--accent)]"
+                        <div className="space-y-3">
+                          <label className="block text-xs font-medium text-[var(--muted-foreground)]">
+                            État
+                            <select
+                              value={item.status}
+                              onChange={(event) =>
+                                changePlanStatus(
+                                  item,
+                                  event.target.value as ActionPlanStatus,
+                                )
+                              }
+                              className="mt-1.5 h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 text-sm font-semibold outline-none focus:border-[var(--accent)]"
+                            >
+                              <option value="to_try">À essayer</option>
+                              <option value="in_progress">En cours</option>
+                              <option value="completed">Réalisée</option>
+                            </select>
+                          </label>
+                          <label className="block text-xs font-medium text-[var(--muted-foreground)]">
+                            <span className="inline-flex items-center gap-1.5">
+                              <CalendarDays size={12} /> Date de début
+                              facultative
+                            </span>
+                            <input
+                              type="date"
+                              value={item.startedAt ?? ""}
+                              onChange={(event) =>
+                                updatePlanItem(scenario.id, {
+                                  startedAt: event.target.value || null,
+                                })
+                              }
+                              className="mt-1.5 h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 text-sm outline-none focus:border-[var(--accent)]"
+                            />
+                          </label>
+                          {item.completedAt && (
+                            <p className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--positive)]">
+                              <Check size={12} /> Réalisée le{" "}
+                              {new Intl.DateTimeFormat("fr-FR", {
+                                dateStyle: "medium",
+                              }).format(new Date(item.completedAt))}
+                            </p>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => removeFromPlan(scenario.id)}
+                            className="text-xs font-semibold text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                           >
-                            <option value="to_try">À essayer</option>
-                            <option value="in_progress">En cours</option>
-                            <option value="completed">Réalisée</option>
-                          </select>
-                        </label>
-                        <label className="block text-xs font-medium text-[var(--muted-foreground)]">
-                          <span className="inline-flex items-center gap-1.5">
-                            <CalendarDays size={12} /> Date de début facultative
-                          </span>
-                          <input
-                            type="date"
-                            value={item.startedAt ?? ""}
-                            onChange={(event) =>
-                              updatePlanItem(scenario.id, {
-                                startedAt: event.target.value || null,
-                              })
-                            }
-                            className="mt-1.5 h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 text-sm outline-none focus:border-[var(--accent)]"
-                          />
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => removeFromPlan(scenario.id)}
-                          className="text-xs font-semibold text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                        >
-                          Retirer du plan
-                        </button>
-                      </div>
-                    </article>
-                  ))}
+                            {item.status === "completed"
+                              ? "Supprimer de l’historique"
+                              : "Retirer du plan"}
+                          </button>
+                        </div>
+                      </article>
+                    ),
+                  )}
                 </div>
               ) : (
                 <div className="py-10 text-center">
