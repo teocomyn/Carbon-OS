@@ -3,7 +3,7 @@
 import { motion } from "motion/react";
 
 const items = [
-  { label: "Transport", value: 32, color: "#7568ff", x: "7%", y: "20%" },
+  { label: "Transport", value: 32, color: "#286f53", x: "7%", y: "20%" },
   { label: "Logement", value: 22, color: "#ff9f66", x: "66%", y: "9%" },
   { label: "Alimentation", value: 20, color: "#ef6cae", x: "44%", y: "54%" },
   { label: "Achats", value: 15, color: "#43b9c5", x: "10%", y: "68%" },

@@ -282,15 +282,6 @@ export function LandingPage() {
           ))}
         </section>
       </div>
-
-      <a
-        href="https://www.onlinewebfonts.com/fonts"
-        className="landing-font-credit"
-        target="_blank"
-        rel="noreferrer"
-      >
-        Font via OnlineWebFonts
-      </a>
     </main>
   );
 }

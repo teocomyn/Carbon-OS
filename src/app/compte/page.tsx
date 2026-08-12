@@ -82,14 +82,6 @@ export default async function AccountPage() {
           propre session à lire, ajouter, modifier ou supprimer ces données.
         </p>
       </ContentSection>
-      <a
-        href="https://www.onlinewebfonts.com/fonts"
-        className="process-font-credit is-inline"
-        target="_blank"
-        rel="noreferrer"
-      >
-        Font via OnlineWebFonts
-      </a>
     </PublicPage>
   );
 }

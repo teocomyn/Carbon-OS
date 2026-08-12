@@ -8,7 +8,7 @@ import type {
 
 const categoryMeta: Record<EmissionCategory, { label: string; color: string }> =
   {
-    transport: { label: "Transport", color: "#7568ff" },
+    transport: { label: "Transport", color: "#286f53" },
     housing: { label: "Logement", color: "#ff9f66" },
     food: { label: "Alimentation", color: "#ef6cae" },
     purchases: { label: "Achats", color: "#43b9c5" },

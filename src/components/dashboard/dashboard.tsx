@@ -709,7 +709,7 @@ export function Dashboard() {
                 initial={{ width: 0 }}
                 animate={{ width: 140 }}
                 transition={{ delay: 0.5, duration: 0.8 }}
-                className="mx-auto mt-9 h-px bg-gradient-to-r from-transparent via-[#8377ff] to-transparent"
+                className="mx-auto mt-9 h-px bg-gradient-to-r from-transparent via-[#286f53] to-transparent"
               />
             </motion.div>
           </motion.div>
@@ -1347,7 +1347,7 @@ export function Dashboard() {
                       animate={{
                         width: `${(simulatedKg / result.totalKg) * 100}%`,
                       }}
-                      className="h-full rounded-full bg-gradient-to-r from-[#8377ff] to-[#62d7b5]"
+                      className="h-full rounded-full bg-gradient-to-r from-[#286f53] to-[#62d7b5]"
                     />
                   </div>
                   <div className="mt-8 flex items-end justify-between border-t border-white/10 pt-6">
@@ -1655,14 +1655,6 @@ export function Dashboard() {
           </section>
         </div>
       </main>
-      <a
-        href="https://www.onlinewebfonts.com/fonts"
-        className="process-font-credit"
-        target="_blank"
-        rel="noreferrer"
-      >
-        Font via OnlineWebFonts
-      </a>
     </div>
   );
 }

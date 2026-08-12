@@ -1,14 +1,5 @@
 @import "tailwindcss";
 
-@font-face {
-  font-family: "BubbledotICG-FinePos";
-  src: url("https://db.onlinewebfonts.com/t/8cb707a9b8a73f8a7403336b861c3074.woff2")
-    format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
 :root {
   --background: #f7f7f4;
   --foreground: #121316;
@@ -17,9 +8,9 @@
   --muted: #e7e7e2;
   --muted-foreground: #6f737d;
   --border: #deded8;
-  --accent: #6d5efc;
-  --accent-soft: rgba(109, 94, 252, 0.2);
-  --positive: #16866f;
+  --accent: #236c50;
+  --accent-soft: rgba(35, 108, 80, 0.18);
+  --positive: #1b7659;
   --positive-soft: #e1f3ee;
   --orange: #e9824d;
 }
@@ -32,8 +23,8 @@
   --muted: #22252c;
   --muted-foreground: #969ca8;
   --border: #292d35;
-  --accent: #8377ff;
-  --accent-soft: rgba(131, 119, 255, 0.22);
+  --accent: #2b785a;
+  --accent-soft: rgba(43, 120, 90, 0.24);
   --positive: #5bd1af;
   --positive-soft: #12342d;
   --orange: #ffad7a;
@@ -188,21 +179,6 @@ body.landing-menu-open {
   font-family: var(--font-geist), "Inter", "Segoe UI", system-ui, sans-serif;
 }
 
-.landing-font-credit {
-  position: absolute;
-  right: 10px;
-  bottom: 7px;
-  z-index: 2;
-  color: rgba(255, 255, 255, 0.26);
-  font-size: 7px;
-  letter-spacing: 0.02em;
-  transition: color 0.2s ease;
-}
-.landing-font-credit:hover,
-.landing-font-credit:focus-visible {
-  color: rgba(255, 255, 255, 0.7);
-}
-
 .landing-header {
   position: relative;
   z-index: 20;
@@ -263,7 +239,7 @@ body.landing-menu-open {
   aspect-ratio: 1;
   border: 2px solid #fff;
   border-radius: 50%;
-  background: #6d5efc;
+  background: #236c50;
 }
 
 .landing-nav {
@@ -416,11 +392,11 @@ body.landing-menu-open {
 
 .landing-headline {
   max-width: 100%;
-  font-family: "BubbledotICG-FinePos", var(--font-geist-mono), monospace;
+  font-family: var(--font-geist), Arial, sans-serif;
   font-size: clamp(42px, 6.2vw, 82px);
-  font-weight: 400;
-  line-height: 1.08;
-  letter-spacing: -0.04em;
+  font-weight: 600;
+  line-height: 0.98;
+  letter-spacing: -0.07em;
   color: #fff;
   text-shadow: 0 3px 28px rgba(0, 0, 0, 0.26);
 }
@@ -502,7 +478,7 @@ body.landing-menu-open {
 }
 .landing-stat-symbol {
   flex: none;
-  font-family: "BubbledotICG-FinePos", var(--font-geist-mono), monospace;
+  font-family: var(--font-geist-mono), monospace;
   color: #fff;
   font-size: clamp(22px, 3vw, 33px);
   line-height: 1;
@@ -789,8 +765,8 @@ body.landing-menu-open {
   --muted: #1c1f25;
   --muted-foreground: #989da9;
   --border: #2b3038;
-  --accent: #7d6dff;
-  --accent-soft: rgba(125, 109, 255, 0.2);
+  --accent: #286f53;
+  --accent-soft: rgba(40, 111, 83, 0.22);
   --positive: #55d9b4;
   --positive-soft: rgba(85, 217, 180, 0.13);
   min-height: 100vh;
@@ -799,7 +775,7 @@ body.landing-menu-open {
   background:
     radial-gradient(
       circle at 82% 8%,
-      rgba(125, 109, 255, 0.07),
+      rgba(40, 111, 83, 0.08),
       transparent 26rem
     ),
     var(--background);
@@ -815,8 +791,8 @@ body.landing-menu-open {
   --muted: #e8e8e3;
   --muted-foreground: #747984;
   --border: #d8d9d5;
-  --accent: #6d5efc;
-  --accent-soft: rgba(109, 94, 252, 0.14);
+  --accent: #236c50;
+  --accent-soft: rgba(35, 108, 80, 0.14);
   --positive: #15836d;
   --positive-soft: #def2ec;
   color-scheme: light;
@@ -893,7 +869,7 @@ body.landing-menu-open {
 }
 
 .questionnaire-progress > div {
-  box-shadow: 0 0 20px rgba(125, 109, 255, 0.7);
+  box-shadow: 0 0 20px rgba(40, 111, 83, 0.7);
 }
 
 .questionnaire-layout {
@@ -1105,7 +1081,7 @@ body.landing-menu-open {
   background:
     radial-gradient(
       circle at 50% 0,
-      rgba(125, 109, 255, 0.12),
+      rgba(40, 111, 83, 0.12),
       transparent 32rem
     ),
     var(--background);
@@ -1242,21 +1218,6 @@ body.landing-menu-open {
 }
 
 /* Carbon Signal — immersive product variants inspired by the landing system. */
-.process-font-credit {
-  position: fixed;
-  right: 8px;
-  bottom: 5px;
-  z-index: 60;
-  color: color-mix(in srgb, var(--muted-foreground) 42%, transparent);
-  font-size: 7px;
-  letter-spacing: 0.02em;
-}
-
-.process-font-credit.is-inline {
-  position: static;
-  justify-self: end;
-}
-
 /* Questionnaire / Signal capture */
 .questionnaire-ambient {
   position: fixed;
@@ -1344,10 +1305,11 @@ body.landing-menu-open {
 .questionnaire-rail-number {
   margin-top: 24px;
   color: #fff;
-  font-family: "BubbledotICG-FinePos", var(--font-geist-mono), monospace;
-  font-size: clamp(72px, 8vw, 110px);
-  letter-spacing: -0.08em;
-  line-height: 0.86;
+  font-family: var(--font-geist), Arial, sans-serif;
+  font-size: clamp(68px, 7vw, 100px);
+  font-weight: 600;
+  letter-spacing: -0.075em;
+  line-height: 0.9;
   text-shadow: 0 0 28px rgba(255, 255, 255, 0.15);
 }
 
@@ -1412,11 +1374,11 @@ body.landing-menu-open {
 }
 
 .questionnaire-title {
-  font-family: "BubbledotICG-FinePos", var(--font-geist-mono), monospace;
+  font-family: var(--font-geist), Arial, sans-serif;
   font-size: clamp(2.65rem, 4.6vw, 4.65rem);
-  font-weight: 400;
-  letter-spacing: -0.055em;
-  line-height: 1.04;
+  font-weight: 600;
+  letter-spacing: -0.065em;
+  line-height: 0.98;
 }
 
 .questionnaire-content {
@@ -1471,7 +1433,7 @@ body.landing-menu-open {
   background:
     radial-gradient(
       circle at 62% 0,
-      rgba(125, 109, 255, 0.1),
+      rgba(40, 111, 83, 0.11),
       transparent 34rem
     ),
     #060708;
@@ -1479,11 +1441,7 @@ body.landing-menu-open {
 
 .light .dashboard-shell {
   background:
-    radial-gradient(
-      circle at 62% 0,
-      rgba(109, 94, 252, 0.1),
-      transparent 34rem
-    ),
+    radial-gradient(circle at 62% 0, rgba(35, 108, 80, 0.1), transparent 34rem),
     var(--background);
 }
 
@@ -1530,10 +1488,10 @@ body.landing-menu-open {
 }
 
 .dashboard-shell section > div:first-child h1 {
-  font-family: "BubbledotICG-FinePos", var(--font-geist-mono), monospace;
+  font-family: var(--font-geist), Arial, sans-serif;
   font-size: clamp(2.3rem, 4.2vw, 4.2rem);
-  font-weight: 400;
-  letter-spacing: -0.055em;
+  font-weight: 600;
+  letter-spacing: -0.07em;
 }
 
 .dashboard-shell .panel {
@@ -1600,9 +1558,9 @@ body.landing-menu-open {
 }
 
 .dashboard-signal-card .number-tabular {
-  font-family: "BubbledotICG-FinePos", var(--font-geist-mono), monospace;
-  font-weight: 400;
-  letter-spacing: -0.05em;
+  font-family: var(--font-geist), Arial, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.075em;
 }
 
 .dashboard-shell #overview + section {
@@ -1626,7 +1584,7 @@ body.landing-menu-open {
   background:
     radial-gradient(
       circle at 72% 14%,
-      rgba(125, 109, 255, 0.1),
+      rgba(40, 111, 83, 0.11),
       transparent 28rem
     ),
     #060708;
@@ -1659,11 +1617,11 @@ body.landing-menu-open {
 
 .account-shell > article > h1 {
   max-width: 900px;
-  font-family: "BubbledotICG-FinePos", var(--font-geist-mono), monospace;
-  font-size: clamp(3rem, 6.1vw, 6.7rem);
-  font-weight: 400;
-  letter-spacing: -0.065em;
-  line-height: 0.98;
+  font-family: var(--font-geist), Arial, sans-serif;
+  font-size: clamp(3rem, 6.1vw, 6.4rem);
+  font-weight: 600;
+  letter-spacing: -0.075em;
+  line-height: 0.95;
 }
 
 .account-shell article > .mt-14 {
@@ -1732,10 +1690,11 @@ body.landing-menu-open {
 }
 
 .account-vault-title {
-  font-family: "BubbledotICG-FinePos", var(--font-geist-mono), monospace;
+  font-family: var(--font-geist), Arial, sans-serif;
   font-size: clamp(2.4rem, 4vw, 4.4rem);
-  letter-spacing: -0.065em;
-  line-height: 0.98;
+  font-weight: 600;
+  letter-spacing: -0.075em;
+  line-height: 0.95;
 }
 
 .account-vault-caption {

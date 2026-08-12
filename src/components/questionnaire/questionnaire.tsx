@@ -886,14 +886,6 @@ export function Questionnaire() {
       <span className="sr-only" aria-live="polite">
         Étape {index + 1} sur {steps.length}, {step.category}
       </span>
-      <a
-        href="https://www.onlinewebfonts.com/fonts"
-        className="process-font-credit"
-        target="_blank"
-        rel="noreferrer"
-      >
-        Font via OnlineWebFonts
-      </a>
     </main>
   );
 }
