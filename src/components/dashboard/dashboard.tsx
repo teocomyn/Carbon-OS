@@ -5,23 +5,60 @@ import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
-  ArrowDown, ArrowRight, BarChart3, Check,
-  ChevronDown, ChevronRight, CircleHelp, Download, ExternalLink, FileText,
-  Gauge, Home, Info, Layers3, Leaf, Menu, Plane, Repeat2, RotateCcw,
-  Share2, ShoppingBag, Sparkles, Target, TrainFront, Utensils, X, Zap,
+  ArrowDown,
+  ArrowRight,
+  BarChart3,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  CircleHelp,
+  Download,
+  ExternalLink,
+  FileText,
+  Gauge,
+  Home,
+  Info,
+  Layers3,
+  Leaf,
+  Menu,
+  Plane,
+  Repeat2,
+  RotateCcw,
+  Share2,
+  ShoppingBag,
+  Sparkles,
+  Target,
+  TrainFront,
+  Utensils,
+  X,
+  Zap,
 } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { defaultAnswers, STORAGE_KEY } from "@/data/defaults";
+import { defaultAnswers, GOAL_STORAGE_KEY, STORAGE_KEY } from "@/data/defaults";
 import { emissionFactors, factorById } from "@/data/emission-factors";
 import { calculateAssessment } from "@/lib/calculator";
 import { buildScenarios } from "@/lib/recommendations";
-import type { AssessmentAnswers, CalculationLine, EmissionCategory, Scenario } from "@/lib/types";
+import type {
+  AssessmentAnswers,
+  CalculationLine,
+  EmissionCategory,
+  Scenario,
+} from "@/lib/types";
 import { cn, formatKg, formatTons } from "@/lib/utils";
 
-const categoryIcons: Record<EmissionCategory, React.ComponentType<{ size?: number }>> = { transport: Plane, housing: Home, food: Utensils, purchases: ShoppingBag, services: Layers3 };
+const categoryIcons: Record<
+  EmissionCategory,
+  React.ComponentType<{ size?: number }>
+> = {
+  transport: Plane,
+  housing: Home,
+  food: Utensils,
+  purchases: ShoppingBag,
+  services: Layers3,
+};
 const navItems = [
   { id: "overview", label: "Vue d’ensemble", icon: BarChart3 },
   { id: "emissions", label: "Émissions", icon: Layers3 },
@@ -30,27 +67,337 @@ const navItems = [
   { id: "methodology", label: "Méthode & sources", icon: FileText },
 ];
 
-function navigateTo(id: string) { document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }); }
-
-function MetricCard({ label, value, note, icon: Icon, accent = false }: { label: string; value: string; note: string; icon: React.ComponentType<{ size?: number }>; accent?: boolean }) {
-  return <div className={cn("panel p-5", accent && "border-[var(--accent)] bg-[var(--accent)] text-white")}><div className="flex items-start justify-between"><p className={cn("text-xs font-medium", accent ? "text-white/65" : "text-[var(--muted-foreground)]")}>{label}</p><Icon size={16}/></div><p className="number-tabular mt-6 text-2xl font-semibold tracking-[-.045em]">{value}</p><p className={cn("mt-1 text-xs", accent ? "text-white/65" : "text-[var(--muted-foreground)]")}>{note}</p></div>;
+function navigateTo(id: string) {
+  document
+    .getElementById(id)
+    ?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function CalculationDialog({ line, trigger }: { line: CalculationLine; trigger: React.ReactNode }) {
+function downloadJson(filename: string, payload: unknown) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+}
+
+function MetricCard({
+  label,
+  value,
+  note,
+  icon: Icon,
+  accent = false,
+}: {
+  label: string;
+  value: string;
+  note: string;
+  icon: React.ComponentType<{ size?: number }>;
+  accent?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "panel p-5",
+        accent && "border-[var(--accent)] bg-[var(--accent)] text-white",
+      )}
+    >
+      <div className="flex items-start justify-between">
+        <p
+          className={cn(
+            "text-xs font-medium",
+            accent ? "text-white/65" : "text-[var(--muted-foreground)]",
+          )}
+        >
+          {label}
+        </p>
+        <Icon size={16} />
+      </div>
+      <p className="number-tabular mt-6 text-2xl font-semibold tracking-[-.045em]">
+        {value}
+      </p>
+      <p
+        className={cn(
+          "mt-1 text-xs",
+          accent ? "text-white/65" : "text-[var(--muted-foreground)]",
+        )}
+      >
+        {note}
+      </p>
+    </div>
+  );
+}
+
+function CalculationDialog({
+  line,
+  trigger,
+}: {
+  line: CalculationLine;
+  trigger: React.ReactNode;
+}) {
   const factor = factorById[line.factorId];
-  return <Dialog.Root><Dialog.Trigger asChild>{trigger}</Dialog.Trigger><Dialog.Portal><Dialog.Overlay className="fixed inset-0 z-[80] bg-black/45 backdrop-blur-sm data-[state=open]:animate-in"/><Dialog.Content className="fixed left-1/2 top-1/2 z-[90] max-h-[88vh] w-[calc(100%-32px)] max-w-[560px] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[26px] border border-[var(--border)] bg-[var(--card)] p-6 shadow-2xl outline-none sm:p-8"><div className="flex items-start justify-between"><div><Dialog.Title className="text-2xl font-semibold tracking-[-.035em]">Calcul · {line.label}</Dialog.Title><Dialog.Description className="mt-2 text-sm text-[var(--muted-foreground)]">Un résultat déterministe, inspectable et reproductible.</Dialog.Description></div><Dialog.Close asChild><Button variant="ghost" size="icon"><X size={18}/></Button></Dialog.Close></div><div className="mt-8 rounded-2xl bg-[var(--background)] p-5 font-mono text-sm"><div className="flex justify-between gap-4"><span>{line.activity.toLocaleString("fr-FR", {maximumFractionDigits:1})} {line.activityUnit}</span></div><div className="my-3 flex items-center gap-3 text-[var(--muted-foreground)]"><span>×</span><div className="h-px flex-1 bg-[var(--border)]"/></div><div className="flex justify-between gap-4"><span>{line.factorValue.toLocaleString("fr-FR", {maximumFractionDigits:6})}</span><span className="text-right text-[var(--muted-foreground)]">{line.factorUnit}</span></div><div className="my-3 h-px bg-[var(--border)]"/><div className="flex justify-between text-base font-bold"><span>=</span><span>{formatKg(line.kgCo2e)} CO₂e/an</span></div></div><p className="mt-5 text-sm leading-6 text-[var(--muted-foreground)]">{line.explanation}</p><dl className="mt-7 grid grid-cols-2 gap-4 border-t border-[var(--border)] pt-6 text-xs"><div><dt className="text-[var(--muted-foreground)]">Source</dt><dd className="mt-1 font-semibold">{factor.source}</dd></div><div><dt className="text-[var(--muted-foreground)]">Année</dt><dd className="mt-1 font-semibold">{factor.year}</dd></div><div><dt className="text-[var(--muted-foreground)]">Confiance facteur</dt><dd className="mt-1 font-semibold capitalize">{factor.confidence}</dd></div><div><dt className="text-[var(--muted-foreground)]">Nature de l’activité</dt><dd className="mt-1 font-semibold">{line.estimated ? "Estimée" : "Déclarée / forfait officiel"}</dd></div></dl><a href={factor.sourceUrl} target="_blank" rel="noreferrer" className="mt-7 inline-flex items-center gap-2 text-sm font-semibold text-[var(--accent)] hover:underline">Consulter la source <ExternalLink size={14}/></a></Dialog.Content></Dialog.Portal></Dialog.Root>;
+  return (
+    <Dialog.Root>
+      <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-[80] bg-black/45 backdrop-blur-sm data-[state=open]:animate-in" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-[90] max-h-[88vh] w-[calc(100%-32px)] max-w-[560px] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[26px] border border-[var(--border)] bg-[var(--card)] p-6 shadow-2xl outline-none sm:p-8">
+          <div className="flex items-start justify-between">
+            <div>
+              <Dialog.Title className="text-2xl font-semibold tracking-[-.035em]">
+                Calcul · {line.label}
+              </Dialog.Title>
+              <Dialog.Description className="mt-2 text-sm text-[var(--muted-foreground)]">
+                Un résultat déterministe, inspectable et reproductible.
+              </Dialog.Description>
+            </div>
+            <Dialog.Close asChild>
+              <Button variant="ghost" size="icon">
+                <X size={18} />
+              </Button>
+            </Dialog.Close>
+          </div>
+          <div className="mt-8 rounded-2xl bg-[var(--background)] p-5 font-mono text-sm">
+            <div className="flex justify-between gap-4">
+              <span>
+                {line.activity.toLocaleString("fr-FR", {
+                  maximumFractionDigits: 1,
+                })}{" "}
+                {line.activityUnit}
+              </span>
+            </div>
+            <div className="my-3 flex items-center gap-3 text-[var(--muted-foreground)]">
+              <span>×</span>
+              <div className="h-px flex-1 bg-[var(--border)]" />
+            </div>
+            <div className="flex justify-between gap-4">
+              <span>
+                {line.factorValue.toLocaleString("fr-FR", {
+                  maximumFractionDigits: 6,
+                })}
+              </span>
+              <span className="text-right text-[var(--muted-foreground)]">
+                {line.factorUnit}
+              </span>
+            </div>
+            <div className="my-3 h-px bg-[var(--border)]" />
+            <div className="flex justify-between text-base font-bold">
+              <span>=</span>
+              <span>{formatKg(line.kgCo2e)} CO₂e/an</span>
+            </div>
+          </div>
+          <p className="mt-5 text-sm leading-6 text-[var(--muted-foreground)]">
+            {line.explanation}
+          </p>
+          <dl className="mt-7 grid grid-cols-2 gap-4 border-t border-[var(--border)] pt-6 text-xs">
+            <div>
+              <dt className="text-[var(--muted-foreground)]">Source</dt>
+              <dd className="mt-1 font-semibold">{factor.source}</dd>
+            </div>
+            <div>
+              <dt className="text-[var(--muted-foreground)]">Année</dt>
+              <dd className="mt-1 font-semibold">{factor.year}</dd>
+            </div>
+            <div>
+              <dt className="text-[var(--muted-foreground)]">
+                Confiance facteur
+              </dt>
+              <dd className="mt-1 font-semibold capitalize">
+                {factor.confidence}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-[var(--muted-foreground)]">
+                Nature de l’activité
+              </dt>
+              <dd className="mt-1 font-semibold">
+                {line.estimated ? "Estimée" : "Déclarée / forfait officiel"}
+              </dd>
+            </div>
+          </dl>
+          <a
+            href={factor.sourceUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-7 inline-flex items-center gap-2 text-sm font-semibold text-[var(--accent)] hover:underline"
+          >
+            Consulter la source <ExternalLink size={14} />
+          </a>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
 }
 
-function CategoryBreakdown({ category, total }: { category: ReturnType<typeof calculateAssessment>["categories"][number]; total: number }) {
+function CategoryBreakdown({
+  category,
+  total,
+}: {
+  category: ReturnType<typeof calculateAssessment>["categories"][number];
+  total: number;
+}) {
   const [open, setOpen] = useState(false);
   const Icon = categoryIcons[category.category];
-  return <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]"><button type="button" aria-expanded={open} onClick={()=>setOpen(!open)} className="grid w-full grid-cols-[auto_1fr_auto] items-center gap-4 p-5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)]"><span className="grid size-11 place-items-center rounded-xl" style={{background:`${category.color}18`,color:category.color}}><Icon size={19}/></span><span><span className="block text-sm font-semibold">{category.label}</span><span className="mt-2 block h-1.5 max-w-[360px] overflow-hidden rounded-full bg-[var(--surface)]"><span className="block h-full rounded-full" style={{width:`${Math.min(category.kgCo2e/total*220,100)}%`,background:category.color}}/></span></span><span className="flex items-center gap-3"><span className="text-right"><span className="block text-base font-semibold">{formatKg(category.kgCo2e)}</span><span className="block text-[10px] text-[var(--muted-foreground)]">{Math.round(category.kgCo2e/total*100)} %</span></span><ChevronDown size={16} className={cn("transition-transform",open&&"rotate-180")}/></span></button><AnimatePresence initial={false}>{open&&<motion.div initial={{height:0}} animate={{height:"auto"}} exit={{height:0}} className="overflow-hidden"><div className="border-t border-[var(--border)] px-5 py-3">{category.lines.map(line=><CalculationDialog key={line.id} line={line} trigger={<button className="group flex w-full items-center justify-between gap-4 rounded-xl px-2 py-3 text-left hover:bg-[var(--surface)]"><span><span className="block text-sm font-medium">{line.label}</span><span className="mt-0.5 block text-[11px] text-[var(--muted-foreground)]">{line.estimated?"Activité estimée":"Donnée déclarée"}</span></span><span className="flex items-center gap-2 text-sm font-semibold">{formatKg(line.kgCo2e)} <ChevronRight size={14} className="text-[var(--muted-foreground)]"/></span></button>}/>)}</div></motion.div>}</AnimatePresence></div>;
+  return (
+    <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        className="grid w-full grid-cols-[auto_1fr_auto] items-center gap-4 p-5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)]"
+      >
+        <span
+          className="grid size-11 place-items-center rounded-xl"
+          style={{ background: `${category.color}18`, color: category.color }}
+        >
+          <Icon size={19} />
+        </span>
+        <span>
+          <span className="block text-sm font-semibold">{category.label}</span>
+          <span className="mt-2 block h-1.5 max-w-[360px] overflow-hidden rounded-full bg-[var(--surface)]">
+            <span
+              className="block h-full rounded-full"
+              style={{
+                width: `${Math.min((category.kgCo2e / total) * 220, 100)}%`,
+                background: category.color,
+              }}
+            />
+          </span>
+        </span>
+        <span className="flex items-center gap-3">
+          <span className="text-right">
+            <span className="block text-base font-semibold">
+              {formatKg(category.kgCo2e)}
+            </span>
+            <span className="block text-[10px] text-[var(--muted-foreground)]">
+              {Math.round((category.kgCo2e / total) * 100)} %
+            </span>
+          </span>
+          <ChevronDown
+            size={16}
+            className={cn("transition-transform", open && "rotate-180")}
+          />
+        </span>
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0 }}
+            animate={{ height: "auto" }}
+            exit={{ height: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="border-t border-[var(--border)] px-5 py-3">
+              {category.lines.map((line) => (
+                <CalculationDialog
+                  key={line.id}
+                  line={line}
+                  trigger={
+                    <button className="group flex w-full items-center justify-between gap-4 rounded-xl px-2 py-3 text-left hover:bg-[var(--surface)]">
+                      <span>
+                        <span className="block text-sm font-medium">
+                          {line.label}
+                        </span>
+                        <span className="mt-0.5 block text-[11px] text-[var(--muted-foreground)]">
+                          {line.estimated
+                            ? "Activité estimée"
+                            : "Donnée déclarée"}
+                        </span>
+                      </span>
+                      <span className="flex items-center gap-2 text-sm font-semibold">
+                        {formatKg(line.kgCo2e)}{" "}
+                        <ChevronRight
+                          size={14}
+                          className="text-[var(--muted-foreground)]"
+                        />
+                      </span>
+                    </button>
+                  }
+                />
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
 }
 
-function ScenarioCard({ scenario, active, onToggle }: { scenario: Scenario; active: boolean; onToggle: () => void }) {
-  const icons: Record<string, React.ComponentType<{size?:number}>> = { zap: Zap, plane: Plane, sprout: Leaf, home: Home, train: TrainFront, repeat: Repeat2, smartphone: Sparkles };
+function ScenarioCard({
+  scenario,
+  active,
+  onToggle,
+}: {
+  scenario: Scenario;
+  active: boolean;
+  onToggle: () => void;
+}) {
+  const icons: Record<string, React.ComponentType<{ size?: number }>> = {
+    zap: Zap,
+    plane: Plane,
+    sprout: Leaf,
+    home: Home,
+    train: TrainFront,
+    repeat: Repeat2,
+    smartphone: Sparkles,
+  };
   const Icon = icons[scenario.icon] ?? Sparkles;
-  return <button type="button" aria-pressed={active} onClick={onToggle} className={cn("group flex w-full items-start gap-4 rounded-2xl border p-5 text-left transition-all",active?"border-[var(--accent)] bg-[var(--accent-soft)]":"border-[var(--border)] bg-[var(--card)] hover:border-[var(--muted-foreground)]")}><span className={cn("grid size-10 shrink-0 place-items-center rounded-xl",active?"bg-[var(--accent)] text-white":"bg-[var(--surface)]")}><Icon size={18}/></span><span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{scenario.title}</span><span className="mt-1 block text-xs leading-5 text-[var(--muted-foreground)]">{scenario.description}</span><span className="mt-3 flex flex-wrap gap-2 text-[10px]"><span className="rounded-full bg-[var(--surface)] px-2 py-1">Effort {scenario.effort.toLowerCase()}</span><span className="rounded-full bg-[var(--surface)] px-2 py-1">{scenario.cost}</span></span></span><span className="text-right"><span className="block whitespace-nowrap text-sm font-bold text-[var(--positive)]">−{formatKg(scenario.savingKg)}</span><span className={cn("ml-auto mt-4 grid size-5 place-items-center rounded-full border",active?"border-[var(--accent)] bg-[var(--accent)] text-white":"border-[var(--border)]")}><Check size={12} className={active?"opacity-100":"opacity-0"}/></span></span></button>;
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onToggle}
+      className={cn(
+        "group flex w-full items-start gap-4 rounded-2xl border p-5 text-left transition-all",
+        active
+          ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+          : "border-[var(--border)] bg-[var(--card)] hover:border-[var(--muted-foreground)]",
+      )}
+    >
+      <span
+        className={cn(
+          "grid size-10 shrink-0 place-items-center rounded-xl",
+          active ? "bg-[var(--accent)] text-white" : "bg-[var(--surface)]",
+        )}
+      >
+        <Icon size={18} />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold">{scenario.title}</span>
+        <span className="mt-1 block text-xs leading-5 text-[var(--muted-foreground)]">
+          {scenario.description}
+        </span>
+        <span className="mt-3 flex flex-wrap gap-2 text-[10px]">
+          <span className="rounded-full bg-[var(--surface)] px-2 py-1">
+            Effort {scenario.effort.toLowerCase()}
+          </span>
+          <span className="rounded-full bg-[var(--surface)] px-2 py-1">
+            {scenario.cost}
+          </span>
+        </span>
+      </span>
+      <span className="text-right">
+        <span className="block whitespace-nowrap text-sm font-bold text-[var(--positive)]">
+          −{formatKg(scenario.savingKg)}
+        </span>
+        <span
+          className={cn(
+            "ml-auto mt-4 grid size-5 place-items-center rounded-full border",
+            active
+              ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+              : "border-[var(--border)]",
+          )}
+        >
+          <Check size={12} className={active ? "opacity-100" : "opacity-0"} />
+        </span>
+      </span>
+    </button>
+  );
 }
 
 export function Dashboard() {
@@ -59,50 +406,878 @@ export function Dashboard() {
   const [reveal, setReveal] = useState(false);
   const [activeScenarios, setActiveScenarios] = useState<string[]>([]);
   const [mobileNav, setMobileNav] = useState(false);
-  useEffect(()=>{
+  const [goalKg, setGoalKg] = useState(5000);
+  const [goalDialogOpen, setGoalDialogOpen] = useState(false);
+  const [feedback, setFeedback] = useState("");
+  useEffect(() => {
     const hydrationTimer = window.setTimeout(() => {
-      try { const stored=localStorage.getItem(STORAGE_KEY); if(stored) setAnswers({...defaultAnswers,...JSON.parse(stored)}); } catch {}
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) setAnswers({ ...defaultAnswers, ...JSON.parse(stored) });
+        const storedGoal = Number(localStorage.getItem(GOAL_STORAGE_KEY));
+        if (storedGoal >= 2000) setGoalKg(storedGoal);
+      } catch {}
       setHydrated(true);
-      if(!sessionStorage.getItem("carbon-os-revealed")){
+      if (!sessionStorage.getItem("carbon-os-revealed")) {
         setReveal(true);
-        sessionStorage.setItem("carbon-os-revealed","1");
-        window.setTimeout(()=>setReveal(false),2200);
+        sessionStorage.setItem("carbon-os-revealed", "1");
+        window.setTimeout(() => setReveal(false), 2200);
       }
     }, 0);
     return () => window.clearTimeout(hydrationTimer);
-  },[]);
-  const result = useMemo(()=>calculateAssessment(answers),[answers]);
-  const scenarios = useMemo(()=>buildScenarios(answers),[answers]);
-  const savingKg = scenarios.filter(s=>activeScenarios.includes(s.id)).reduce((sum,s)=>sum+s.savingKg,0);
-  const simulatedKg = Math.max(result.totalKg-savingKg,0);
-  const topLines = result.categories.flatMap(c=>c.lines).sort((a,b)=>b.kgCo2e-a.kgCo2e).slice(0,5);
+  }, []);
+  useEffect(() => {
+    if (!feedback) return;
+    const feedbackTimer = window.setTimeout(() => setFeedback(""), 3200);
+    return () => window.clearTimeout(feedbackTimer);
+  }, [feedback]);
+  const result = useMemo(() => calculateAssessment(answers), [answers]);
+  const scenarios = useMemo(() => buildScenarios(answers), [answers]);
+  const savingKg = scenarios
+    .filter((s) => activeScenarios.includes(s.id))
+    .reduce((sum, s) => sum + s.savingKg, 0);
+  const simulatedKg = Math.max(result.totalKg - savingKg, 0);
+  const topLines = result.categories
+    .flatMap((c) => c.lines)
+    .sort((a, b) => b.kgCo2e - a.kgCo2e)
+    .slice(0, 5);
   const topAction = scenarios[0];
-  const carbonScore = Math.round(Math.max(0,Math.min(100,100-result.totalKg/100)));
-  const toggleScenario=(id:string)=>setActiveScenarios(current=>current.includes(id)?current.filter(x=>x!==id):[...current,id]);
-  const reset=()=>{localStorage.removeItem(STORAGE_KEY);setAnswers(defaultAnswers);setActiveScenarios([]);};
+  const carbonScore = Math.round(
+    Math.max(0, Math.min(100, 100 - result.totalKg / 100)),
+  );
+  const toggleScenario = (id: string) =>
+    setActiveScenarios((current) =>
+      current.includes(id) ? current.filter((x) => x !== id) : [...current, id],
+    );
+  const reset = () => {
+    localStorage.removeItem(STORAGE_KEY);
+    setAnswers(defaultAnswers);
+    setActiveScenarios([]);
+  };
+  const deleteAllData = () => {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(GOAL_STORAGE_KEY);
+    setAnswers(defaultAnswers);
+    setGoalKg(5000);
+    setActiveScenarios([]);
+    setFeedback("Données locales supprimées");
+  };
+  const saveGoal = (value: number) => {
+    setGoalKg(value);
+    localStorage.setItem(GOAL_STORAGE_KEY, String(value));
+    setGoalDialogOpen(false);
+    setFeedback(`Objectif enregistré : ${formatTons(value)} t en 2030`);
+  };
+  const exportData = () => {
+    downloadJson("carbon-os-bilan-2026.json", {
+      exportedAt: new Date().toISOString(),
+      answers,
+      result,
+      goal: { targetKg: goalKg, year: 2030 },
+    });
+    setFeedback("Bilan exporté au format JSON");
+  };
+  const exportPlan = () => {
+    downloadJson("carbon-os-plan-action-2026.json", {
+      exportedAt: new Date().toISOString(),
+      currentKg: result.totalKg,
+      targetKg: goalKg,
+      targetYear: 2030,
+      recommendations: scenarios.slice(0, 5),
+      selectedScenarios: scenarios.filter((scenario) =>
+        activeScenarios.includes(scenario.id),
+      ),
+    });
+    setFeedback("Plan d’action exporté au format JSON");
+  };
+  const shareAssessment = async () => {
+    const shareData = {
+      title: "Mon bilan Carbon OS",
+      text: `Mon empreinte estimée est de ${formatTons(result.totalKg)} t CO₂e/an. Découvrez la vôtre avec Carbon OS.`,
+      url: window.location.origin,
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        setFeedback("Bilan partagé");
+      } else {
+        await navigator.clipboard.writeText(
+          `${shareData.text} ${shareData.url}`,
+        );
+        setFeedback("Lien et résumé copiés");
+      }
+    } catch {
+      setFeedback("Partage annulé");
+    }
+  };
 
-  if (!hydrated) return <main className="grid min-h-screen place-items-center"><div className="text-center"><Logo/><div className="mx-auto mt-8 size-6 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]"/></div></main>;
-  return <div className="min-h-screen bg-[var(--background)]">
-    <AnimatePresence>{reveal&&<motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0,transition:{duration:.45}}} className="fixed inset-0 z-[100] grid place-items-center bg-[#0b0c0f] text-white"><motion.div initial={{scale:.86,opacity:0}} animate={{scale:1,opacity:1}} transition={{duration:.7,ease:[.22,1,.36,1]}} className="text-center"><p className="text-xs font-semibold uppercase tracking-[.16em] text-white/45">Votre empreinte annuelle estimée</p><p className="number-tabular mt-7 text-[clamp(6rem,18vw,12rem)] font-semibold leading-none tracking-[-.09em]">{formatTons(result.totalKg)}</p><p className="mt-4 text-lg text-white/60">tonnes CO₂e / an</p><motion.div initial={{width:0}} animate={{width:140}} transition={{delay:.5,duration:.8}} className="mx-auto mt-9 h-px bg-gradient-to-r from-transparent via-[#8377ff] to-transparent"/></motion.div></motion.div>}</AnimatePresence>
-    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] border-r border-[var(--border)] bg-[var(--card)] p-5 lg:flex lg:flex-col"><div className="px-2 py-2"><Logo/></div><nav className="mt-12 space-y-1">{navItems.map(item=><button key={item.id} onClick={()=>navigateTo(item.id)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface)] hover:text-[var(--foreground)]"><item.icon size={17}/>{item.label}</button>)}</nav><div className="mt-auto rounded-2xl bg-[var(--surface)] p-4"><div className="flex items-center justify-between"><p className="text-xs font-semibold">Carbon Score</p><Sparkles size={14} className="text-[var(--accent)]"/></div><p className="mt-3 text-3xl font-semibold tracking-[-.06em]">{carbonScore}<span className="text-sm font-normal text-[var(--muted-foreground)]"> / 100</span></p><div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--border)]"><div className="h-full rounded-full bg-[var(--accent)]" style={{width:`${carbonScore}%`}}/></div></div><div className="mt-4 flex items-center justify-between border-t border-[var(--border)] px-2 pt-4"><button onClick={reset} className="flex items-center gap-2 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]"><RotateCcw size={13}/> Réinitialiser</button><ThemeToggle/></div></aside>
-    <header className="sticky top-0 z-30 border-b border-[var(--border)] bg-[color:var(--background)/.86] backdrop-blur-xl lg:ml-[248px]"><div className="flex h-[68px] items-center justify-between px-5 lg:px-8"><div className="flex items-center gap-3 lg:hidden"><Button variant="ghost" size="icon" onClick={()=>setMobileNav(!mobileNav)} aria-label="Ouvrir le menu"><Menu size={19}/></Button><Logo compact/></div><div className="hidden lg:block"><p className="text-sm font-semibold">Bilan personnel · 2026</p><p className="text-[11px] text-[var(--muted-foreground)]">Facteurs {result.factorVersion}</p></div><div className="flex items-center gap-2"><Button variant="ghost" size="icon" aria-label="Partager"><Share2 size={17}/></Button><Button asChild variant="secondary" size="sm"><Link href="/questionnaire">Mettre à jour</Link></Button></div></div>{mobileNav&&<nav className="grid grid-cols-2 gap-1 border-t border-[var(--border)] p-3 lg:hidden">{navItems.map(item=><button key={item.id} onClick={()=>{navigateTo(item.id);setMobileNav(false)}} className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-[var(--muted-foreground)] hover:bg-[var(--surface)]"><item.icon size={14}/>{item.label}</button>)}</nav>}</header>
-    <main className="lg:ml-[248px]"><div className="mx-auto max-w-[1180px] px-5 py-8 lg:px-8 lg:py-12">
-      <section id="overview" className="scroll-mt-24"><div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end"><div><p className="eyebrow">Vue d’ensemble</p><h1 className="mt-3 text-3xl font-semibold tracking-[-.045em] sm:text-4xl">Bonjour, voici ce qui compte.</h1></div><div className="flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-xs text-[var(--muted-foreground)]"><span className="size-1.5 rounded-full bg-[var(--positive)]"/> Calcul à jour</div></div>
-        <div className="mt-7 grid gap-5 xl:grid-cols-[1.35fr_.65fr]"><div className="panel relative overflow-hidden p-6 sm:p-8"><div className="absolute right-0 top-0 size-72 translate-x-1/3 -translate-y-1/3 rounded-full bg-[var(--accent-soft)] blur-3xl"/><div className="relative grid items-center gap-8 sm:grid-cols-[1fr_220px]"><div><p className="text-sm text-[var(--muted-foreground)]">Empreinte annuelle estimée</p><p className="number-tabular mt-3 text-[clamp(4.8rem,10vw,7.5rem)] font-semibold leading-none tracking-[-.085em]">{formatTons(result.totalKg)}</p><p className="mt-3 text-sm font-medium">tonnes CO₂e / an</p><div className="mt-7 flex flex-wrap gap-2"><span className="rounded-full bg-[var(--surface)] px-3 py-1.5 text-xs">≈ {Math.round(result.totalKg/365)} kg / jour</span><span className="rounded-full bg-[var(--surface)] px-3 py-1.5 text-xs">Fourchette {formatTons(result.lowKg)}–{formatTons(result.highKg)} t</span></div></div><div className="h-[210px]" aria-label={`Graphique de répartition : ${result.categories.map(c=>`${c.label} ${Math.round(c.kgCo2e/result.totalKg*100)} %`).join(", ")}`}><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={result.categories} dataKey="kgCo2e" nameKey="label" innerRadius={68} outerRadius={92} paddingAngle={2} stroke="none">{result.categories.map(c=><Cell key={c.category} fill={c.color}/>)}</Pie><Tooltip formatter={(value)=>formatKg(Number(value))} contentStyle={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:12,fontSize:12}}/></PieChart></ResponsiveContainer><div className="pointer-events-none relative -top-[126px] text-center"><p className="text-xl font-semibold">{result.confidenceScore}%</p><p className="text-[9px] uppercase tracking-wider text-[var(--muted-foreground)]">confiance</p></div></div></div></div>
-          <div className="panel flex flex-col p-6"><div className="flex items-start justify-between"><div><p className="text-sm font-semibold">Action prioritaire</p><p className="mt-1 text-xs text-[var(--muted-foreground)]">Meilleur potentiel actuel</p></div><span className="grid size-9 place-items-center rounded-xl bg-[var(--positive-soft)] text-[var(--positive)]"><ArrowDown size={17}/></span></div>{topAction&&<><h2 className="mt-10 text-2xl font-semibold leading-tight tracking-[-.035em]">{topAction.title}</h2><p className="mt-3 text-sm leading-6 text-[var(--muted-foreground)]">{topAction.description}</p><div className="mt-auto pt-8"><p className="text-3xl font-semibold tracking-[-.05em] text-[var(--positive)]">−{formatKg(topAction.savingKg)}</p><p className="mt-1 text-xs text-[var(--muted-foreground)]">CO₂e évités chaque année</p><Button variant="secondary" className="mt-5 w-full" onClick={()=>navigateTo("simulator")}>Simuler cette action <ArrowRight size={15}/></Button></div></>}</div></div>
-        <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4"><MetricCard label="Carbon Score" value={`${carbonScore} / 100`} note="Index de distance à 2 tonnes" icon={Sparkles}/><MetricCard label="Fourchette probable" value={`${formatTons(result.lowKg)}–${formatTons(result.highKg)} t`} note="Selon l’incertitude des activités" icon={Gauge}/><MetricCard label="Potentiel identifié" value={`−${formatTons(scenarios.reduce((s,x)=>s+x.savingKg,0))} t`} note="Leviers non cumulés mécaniquement" icon={Target}/><MetricCard label="Objectif long terme" value="2,0 t" note="Trajectoire neutralité 2050" icon={Leaf} accent/></div>
-      </section>
+  if (!hydrated)
+    return (
+      <main className="grid min-h-screen place-items-center">
+        <div className="text-center">
+          <Logo />
+          <div className="mx-auto mt-8 size-6 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
+        </div>
+      </main>
+    );
+  return (
+    <div className="min-h-screen bg-[var(--background)]">
+      <AnimatePresence>
+        {reveal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, transition: { duration: 0.45 } }}
+            className="fixed inset-0 z-[100] grid place-items-center bg-[#0b0c0f] text-white"
+          >
+            <motion.div
+              initial={{ scale: 0.86, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+              className="text-center"
+            >
+              <p className="text-xs font-semibold uppercase tracking-[.16em] text-white/45">
+                Votre empreinte annuelle estimée
+              </p>
+              <p className="number-tabular mt-7 text-[clamp(6rem,18vw,12rem)] font-semibold leading-none tracking-[-.09em]">
+                {formatTons(result.totalKg)}
+              </p>
+              <p className="mt-4 text-lg text-white/60">tonnes CO₂e / an</p>
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: 140 }}
+                transition={{ delay: 0.5, duration: 0.8 }}
+                className="mx-auto mt-9 h-px bg-gradient-to-r from-transparent via-[#8377ff] to-transparent"
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] border-r border-[var(--border)] bg-[var(--card)] p-5 lg:flex lg:flex-col">
+        <div className="px-2 py-2">
+          <Logo />
+        </div>
+        <nav className="mt-12 space-y-1">
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => navigateTo(item.id)}
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface)] hover:text-[var(--foreground)]"
+            >
+              <item.icon size={17} />
+              {item.label}
+            </button>
+          ))}
+        </nav>
+        <div className="mt-auto rounded-2xl bg-[var(--surface)] p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold">Indice trajectoire</p>
+            <span className="rounded-full bg-[var(--accent-soft)] px-2 py-1 text-[8px] font-bold uppercase tracking-wide text-[var(--accent)]">
+              Expérimental
+            </span>
+          </div>
+          <p className="mt-3 text-3xl font-semibold tracking-[-.06em]">
+            {carbonScore}
+            <span className="text-sm font-normal text-[var(--muted-foreground)]">
+              {" "}
+              / 100
+            </span>
+          </p>
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--border)]">
+            <div
+              className="h-full rounded-full bg-[var(--accent)]"
+              style={{ width: `${carbonScore}%` }}
+            />
+          </div>
+          <p className="mt-2 text-[9px] leading-4 text-[var(--muted-foreground)]">
+            Repère indicatif vers 2 t, pas un classement.
+          </p>
+        </div>
+        <div className="mt-4 flex items-center justify-between border-t border-[var(--border)] px-2 pt-4">
+          <button
+            onClick={reset}
+            className="flex items-center gap-2 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+          >
+            <RotateCcw size={13} /> Réinitialiser
+          </button>
+          <ThemeToggle />
+        </div>
+      </aside>
+      <header className="sticky top-0 z-30 border-b border-[var(--border)] bg-[color:var(--background)/.86] backdrop-blur-xl lg:ml-[248px]">
+        <div className="flex h-[68px] items-center justify-between px-5 lg:px-8">
+          <div className="flex items-center gap-3 lg:hidden">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setMobileNav(!mobileNav)}
+              aria-label="Ouvrir le menu"
+            >
+              <Menu size={19} />
+            </Button>
+            <Logo compact />
+          </div>
+          <div className="hidden lg:block">
+            <p className="text-sm font-semibold">Bilan personnel · 2026</p>
+            <p className="text-[11px] text-[var(--muted-foreground)]">
+              Facteurs {result.factorVersion}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Partager mon bilan"
+              onClick={shareAssessment}
+            >
+              <Share2 size={17} />
+            </Button>
+            <Button asChild variant="secondary" size="sm">
+              <Link href="/questionnaire">Mettre à jour</Link>
+            </Button>
+          </div>
+        </div>
+        {mobileNav && (
+          <nav className="grid grid-cols-2 gap-1 border-t border-[var(--border)] p-3 lg:hidden">
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => {
+                  navigateTo(item.id);
+                  setMobileNav(false);
+                }}
+                className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-[var(--muted-foreground)] hover:bg-[var(--surface)]"
+              >
+                <item.icon size={14} />
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        )}
+      </header>
+      <p className="sr-only" aria-live="polite">
+        {feedback}
+      </p>
+      <AnimatePresence>
+        {feedback && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="fixed right-4 top-20 z-[70] rounded-full border border-[var(--border)] bg-[var(--card)] px-4 py-2.5 text-xs font-semibold shadow-lg"
+          >
+            {feedback}
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <main className="lg:ml-[248px]">
+        <div className="mx-auto max-w-[1180px] px-5 py-8 lg:px-8 lg:py-12">
+          <section id="overview" className="scroll-mt-24">
+            <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+              <div>
+                <p className="eyebrow">Vue d’ensemble</p>
+                <h1 className="mt-3 text-3xl font-semibold tracking-[-.045em] sm:text-4xl">
+                  Bonjour, voici ce qui compte.
+                </h1>
+              </div>
+              <div className="flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-xs text-[var(--muted-foreground)]">
+                <span className="size-1.5 rounded-full bg-[var(--positive)]" />{" "}
+                Calcul à jour
+              </div>
+            </div>
+            <div className="mt-7 grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
+              <div className="panel relative overflow-hidden p-6 sm:p-8">
+                <div className="absolute right-0 top-0 size-72 translate-x-1/3 -translate-y-1/3 rounded-full bg-[var(--accent-soft)] blur-3xl" />
+                <div className="relative grid items-center gap-8 sm:grid-cols-[1fr_220px]">
+                  <div>
+                    <p className="text-sm text-[var(--muted-foreground)]">
+                      Empreinte annuelle estimée
+                    </p>
+                    <p className="number-tabular mt-3 text-[clamp(4.8rem,10vw,7.5rem)] font-semibold leading-none tracking-[-.085em]">
+                      {formatTons(result.totalKg)}
+                    </p>
+                    <p className="mt-3 text-sm font-medium">tonnes CO₂e / an</p>
+                    <div className="mt-7 flex flex-wrap gap-2">
+                      <span className="rounded-full bg-[var(--surface)] px-3 py-1.5 text-xs">
+                        ≈ {Math.round(result.totalKg / 365)} kg / jour
+                      </span>
+                      <span className="rounded-full bg-[var(--surface)] px-3 py-1.5 text-xs">
+                        Fourchette indicative {formatTons(result.lowKg)}–
+                        {formatTons(result.highKg)} t
+                      </span>
+                    </div>
+                  </div>
+                  <div
+                    className="h-[210px]"
+                    aria-label={`Graphique de répartition : ${result.categories.map((c) => `${c.label} ${Math.round((c.kgCo2e / result.totalKg) * 100)} %`).join(", ")}`}
+                  >
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={result.categories}
+                          dataKey="kgCo2e"
+                          nameKey="label"
+                          innerRadius={68}
+                          outerRadius={92}
+                          paddingAngle={2}
+                          stroke="none"
+                        >
+                          {result.categories.map((c) => (
+                            <Cell key={c.category} fill={c.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(value) => formatKg(Number(value))}
+                          contentStyle={{
+                            background: "var(--card)",
+                            border: "1px solid var(--border)",
+                            borderRadius: 12,
+                            fontSize: 12,
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="pointer-events-none relative -top-[126px] text-center">
+                      <p className="text-xl font-semibold">
+                        {result.confidenceScore}%
+                      </p>
+                      <p className="text-[9px] uppercase tracking-wider text-[var(--muted-foreground)]">
+                        qualité
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="panel flex flex-col p-6">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-semibold">Action prioritaire</p>
+                    <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                      Meilleur potentiel actuel
+                    </p>
+                  </div>
+                  <span className="grid size-9 place-items-center rounded-xl bg-[var(--positive-soft)] text-[var(--positive)]">
+                    <ArrowDown size={17} />
+                  </span>
+                </div>
+                {topAction && (
+                  <>
+                    <h2 className="mt-10 text-2xl font-semibold leading-tight tracking-[-.035em]">
+                      {topAction.title}
+                    </h2>
+                    <p className="mt-3 text-sm leading-6 text-[var(--muted-foreground)]">
+                      {topAction.description}
+                    </p>
+                    <div className="mt-auto pt-8">
+                      <p className="text-3xl font-semibold tracking-[-.05em] text-[var(--positive)]">
+                        −{formatKg(topAction.savingKg)}
+                      </p>
+                      <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                        CO₂e évités chaque année
+                      </p>
+                      <Button
+                        variant="secondary"
+                        className="mt-5 w-full"
+                        onClick={() => navigateTo("simulator")}
+                      >
+                        Simuler cette action <ArrowRight size={15} />
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <MetricCard
+                label="Indice trajectoire"
+                value={`${carbonScore} / 100`}
+                note="Repère expérimental, pas un classement"
+                icon={Sparkles}
+              />
+              <MetricCard
+                label="Fourchette indicative"
+                value={`${formatTons(result.lowKg)}–${formatTons(result.highKg)} t`}
+                note="Selon l’incertitude des activités"
+                icon={Gauge}
+              />
+              <MetricCard
+                label="Potentiel identifié"
+                value={`−${formatTons(scenarios.reduce((s, x) => s + x.savingKg, 0))} t`}
+                note="Leviers non cumulés mécaniquement"
+                icon={Target}
+              />
+              <MetricCard
+                label="Objectif long terme"
+                value="2,0 t"
+                note="Trajectoire neutralité 2050"
+                icon={Leaf}
+                accent
+              />
+            </div>
+          </section>
 
-      <section id="emissions" className="scroll-mt-24 pt-24"><div className="flex items-end justify-between"><div><p className="eyebrow">Comprendre</p><h2 className="mt-3 text-3xl font-semibold tracking-[-.045em]">D’où viennent vos émissions ?</h2></div><p className="hidden max-w-[340px] text-right text-xs leading-5 text-[var(--muted-foreground)] sm:block">Cliquez sur une catégorie, puis sur une activité, pour inspecter chaque calcul.</p></div><div className="mt-7 grid gap-5 xl:grid-cols-[1fr_.72fr]"><div className="space-y-3">{result.categories.sort((a,b)=>b.kgCo2e-a.kgCo2e).map(category=><CategoryBreakdown key={category.category} category={category} total={result.totalKg}/>)}</div><div className="space-y-5"><div className="panel p-6"><p className="text-sm font-semibold">Vos 5 plus gros postes</p><div className="mt-5 space-y-1">{topLines.map((line,index)=><CalculationDialog key={line.id} line={line} trigger={<button className="grid w-full grid-cols-[26px_1fr_auto] items-center gap-3 rounded-xl px-2 py-3 text-left hover:bg-[var(--surface)]"><span className="font-mono text-xs text-[var(--muted-foreground)]">{String(index+1).padStart(2,"0")}</span><span className="text-sm font-medium">{line.label}</span><span className="text-sm font-semibold">{formatKg(line.kgCo2e)}</span></button>}/>)}</div></div><div className="panel p-6"><div className="flex items-center gap-2"><p className="text-sm font-semibold">Vous situer</p><CircleHelp size={14} className="text-[var(--muted-foreground)]"/></div><p className="mt-2 text-xs leading-5 text-[var(--muted-foreground)]">Comparaison limitée à des périmètres de consommation cohérents. Les méthodologies incompatibles ne sont pas affichées.</p><div className="mt-6 space-y-5">{[{label:"Vous",kg:result.totalKg,color:"var(--accent)"},{label:"France",kg:8200,color:"var(--muted-foreground)"},{label:"Trajectoire 2050",kg:2000,color:"var(--positive)"}].map(item=><div key={item.label}><div className="mb-2 flex justify-between text-xs"><span className="font-medium">{item.label}</span><span className="font-semibold">{formatTons(item.kg)} t</span></div><div className="h-2 overflow-hidden rounded-full bg-[var(--surface)]"><div className="h-full rounded-full" style={{width:`${Math.min(item.kg/Math.max(result.totalKg,8200)*100,100)}%`,background:item.color}}/></div></div>)}</div><p className="mt-6 border-t border-[var(--border)] pt-4 text-[10px] leading-4 text-[var(--muted-foreground)]">France : 8,2 t CO₂e/personne/an, ADEME 2025–2026. Cible 2 t : trajectoire neutralité carbone à long terme.</p></div></div></div>
-      </section>
+          <section id="emissions" className="scroll-mt-24 pt-24">
+            <div className="flex items-end justify-between">
+              <div>
+                <p className="eyebrow">Comprendre</p>
+                <h2 className="mt-3 text-3xl font-semibold tracking-[-.045em]">
+                  D’où viennent vos émissions ?
+                </h2>
+              </div>
+              <p className="hidden max-w-[340px] text-right text-xs leading-5 text-[var(--muted-foreground)] sm:block">
+                Cliquez sur une catégorie, puis sur une activité, pour inspecter
+                chaque calcul.
+              </p>
+            </div>
+            <div className="mt-7 grid gap-5 xl:grid-cols-[1fr_.72fr]">
+              <div className="space-y-3">
+                {result.categories
+                  .sort((a, b) => b.kgCo2e - a.kgCo2e)
+                  .map((category) => (
+                    <CategoryBreakdown
+                      key={category.category}
+                      category={category}
+                      total={result.totalKg}
+                    />
+                  ))}
+              </div>
+              <div className="space-y-5">
+                <div className="panel p-6">
+                  <p className="text-sm font-semibold">
+                    Vos 5 plus gros postes
+                  </p>
+                  <div className="mt-5 space-y-1">
+                    {topLines.map((line, index) => (
+                      <CalculationDialog
+                        key={line.id}
+                        line={line}
+                        trigger={
+                          <button className="grid w-full grid-cols-[26px_1fr_auto] items-center gap-3 rounded-xl px-2 py-3 text-left hover:bg-[var(--surface)]">
+                            <span className="font-mono text-xs text-[var(--muted-foreground)]">
+                              {String(index + 1).padStart(2, "0")}
+                            </span>
+                            <span className="text-sm font-medium">
+                              {line.label}
+                            </span>
+                            <span className="text-sm font-semibold">
+                              {formatKg(line.kgCo2e)}
+                            </span>
+                          </button>
+                        }
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="panel p-6">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold">Vous situer</p>
+                    <CircleHelp
+                      size={14}
+                      className="text-[var(--muted-foreground)]"
+                    />
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-[var(--muted-foreground)]">
+                    Comparaison limitée à des périmètres de consommation
+                    cohérents. Les méthodologies incompatibles ne sont pas
+                    affichées.
+                  </p>
+                  <div className="mt-6 space-y-5">
+                    {[
+                      {
+                        label: "Vous",
+                        kg: result.totalKg,
+                        color: "var(--accent)",
+                      },
+                      {
+                        label: "France",
+                        kg: 8200,
+                        color: "var(--muted-foreground)",
+                      },
+                      {
+                        label: "Trajectoire 2050",
+                        kg: 2000,
+                        color: "var(--positive)",
+                      },
+                    ].map((item) => (
+                      <div key={item.label}>
+                        <div className="mb-2 flex justify-between text-xs">
+                          <span className="font-medium">{item.label}</span>
+                          <span className="font-semibold">
+                            {formatTons(item.kg)} t
+                          </span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-[var(--surface)]">
+                          <div
+                            className="h-full rounded-full"
+                            style={{
+                              width: `${Math.min((item.kg / Math.max(result.totalKg, 8200)) * 100, 100)}%`,
+                              background: item.color,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-6 border-t border-[var(--border)] pt-4 text-[10px] leading-4 text-[var(--muted-foreground)]">
+                    France : 8,2 t CO₂e/personne/an, ADEME 2025–2026. Cible 2 t
+                    : trajectoire neutralité carbone à long terme.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
 
-      <section id="simulator" className="scroll-mt-24 pt-24"><div><p className="eyebrow">Décider</p><h2 className="mt-3 text-3xl font-semibold tracking-[-.045em]">Et si vous changiez une chose ?</h2><p className="mt-3 max-w-[590px] text-sm leading-6 text-[var(--muted-foreground)]">Activez plusieurs scénarios. Le moteur recalcule immédiatement la différence sans demander à une IA d’inventer un chiffre.</p></div><div className="mt-7 grid gap-5 xl:grid-cols-[1fr_.72fr]"><div className="grid gap-3 md:grid-cols-2">{scenarios.map(s=><ScenarioCard key={s.id} scenario={s} active={activeScenarios.includes(s.id)} onToggle={()=>toggleScenario(s.id)}/>)}</div><div className="xl:sticky xl:top-24 xl:self-start"><div className="overflow-hidden rounded-[24px] bg-[#111218] p-6 text-white sm:p-7"><p className="text-xs font-semibold uppercase tracking-[.12em] text-white/45">Nouveau scénario</p><div className="mt-8 grid grid-cols-2 gap-5"><div><p className="text-xs text-white/45">Aujourd’hui</p><p className="number-tabular mt-2 text-3xl font-semibold tracking-[-.05em]">{formatTons(result.totalKg)} t</p></div><div><p className="text-xs text-white/45">Avec ces actions</p><p className="number-tabular mt-2 text-3xl font-semibold tracking-[-.05em] text-[#8fefcf]">{formatTons(simulatedKg)} t</p></div></div><div className="mt-8 h-3 overflow-hidden rounded-full bg-white/10"><motion.div animate={{width:`${simulatedKg/result.totalKg*100}%`}} className="h-full rounded-full bg-gradient-to-r from-[#8377ff] to-[#62d7b5]"/></div><div className="mt-8 flex items-end justify-between border-t border-white/10 pt-6"><div><p className="text-xs text-white/45">Économie potentielle</p><p className="mt-2 text-3xl font-semibold tracking-[-.05em] text-[#8fefcf]">−{formatKg(savingKg)}</p></div><span className="text-sm text-white/50">−{Math.round(savingKg/result.totalKg*100)}%</span></div><button onClick={()=>setActiveScenarios([])} className="mt-6 text-xs text-white/45 hover:text-white">Réinitialiser le scénario</button></div><div className="mt-3 flex gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 text-xs leading-5 text-[var(--muted-foreground)]"><Info size={15} className="mt-0.5 shrink-0"/><p>Les économies peuvent se chevaucher. Pour une trajectoire consolidée, priorisez les actions une par une.</p></div></div></div></section>
+          <section id="simulator" className="scroll-mt-24 pt-24">
+            <div>
+              <p className="eyebrow">Décider</p>
+              <h2 className="mt-3 text-3xl font-semibold tracking-[-.045em]">
+                Et si vous changiez une chose ?
+              </h2>
+              <p className="mt-3 max-w-[590px] text-sm leading-6 text-[var(--muted-foreground)]">
+                Activez plusieurs scénarios. Le moteur recalcule immédiatement
+                la différence sans demander à une IA d’inventer un chiffre.
+              </p>
+            </div>
+            <div className="mt-7 grid gap-5 xl:grid-cols-[1fr_.72fr]">
+              <div className="grid gap-3 md:grid-cols-2">
+                {scenarios.map((s) => (
+                  <ScenarioCard
+                    key={s.id}
+                    scenario={s}
+                    active={activeScenarios.includes(s.id)}
+                    onToggle={() => toggleScenario(s.id)}
+                  />
+                ))}
+              </div>
+              <div className="xl:sticky xl:top-24 xl:self-start">
+                <div className="overflow-hidden rounded-[24px] bg-[#111218] p-6 text-white sm:p-7">
+                  <p className="text-xs font-semibold uppercase tracking-[.12em] text-white/45">
+                    Nouveau scénario
+                  </p>
+                  <div className="mt-8 grid grid-cols-2 gap-5">
+                    <div>
+                      <p className="text-xs text-white/45">Aujourd’hui</p>
+                      <p className="number-tabular mt-2 text-3xl font-semibold tracking-[-.05em]">
+                        {formatTons(result.totalKg)} t
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-white/45">Avec ces actions</p>
+                      <p className="number-tabular mt-2 text-3xl font-semibold tracking-[-.05em] text-[#8fefcf]">
+                        {formatTons(simulatedKg)} t
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-8 h-3 overflow-hidden rounded-full bg-white/10">
+                    <motion.div
+                      animate={{
+                        width: `${(simulatedKg / result.totalKg) * 100}%`,
+                      }}
+                      className="h-full rounded-full bg-gradient-to-r from-[#8377ff] to-[#62d7b5]"
+                    />
+                  </div>
+                  <div className="mt-8 flex items-end justify-between border-t border-white/10 pt-6">
+                    <div>
+                      <p className="text-xs text-white/45">
+                        Économie potentielle
+                      </p>
+                      <p className="mt-2 text-3xl font-semibold tracking-[-.05em] text-[#8fefcf]">
+                        −{formatKg(savingKg)}
+                      </p>
+                    </div>
+                    <span className="text-sm text-white/50">
+                      −{Math.round((savingKg / result.totalKg) * 100)}%
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setActiveScenarios([])}
+                    className="mt-6 text-xs text-white/45 hover:text-white"
+                  >
+                    Réinitialiser le scénario
+                  </button>
+                </div>
+                <div className="mt-3 flex gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 text-xs leading-5 text-[var(--muted-foreground)]">
+                  <Info size={15} className="mt-0.5 shrink-0" />
+                  <p>
+                    Les économies peuvent se chevaucher. Pour une trajectoire
+                    consolidée, priorisez les actions une par une.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
 
-      <section id="actions" className="scroll-mt-24 pt-24"><div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="eyebrow">Réduire</p><h2 className="mt-3 text-3xl font-semibold tracking-[-.045em]">Votre plan d’action, par impact.</h2></div><Button variant="secondary"><Download size={15}/> Exporter le plan</Button></div><div className="mt-7 overflow-hidden rounded-[24px] border border-[var(--border)] bg-[var(--card)]">{scenarios.slice(0,5).map((s,index)=><div key={s.id} className="grid gap-5 border-b border-[var(--border)] p-5 last:border-0 sm:grid-cols-[40px_1fr_auto] sm:items-center sm:p-6"><span className="font-mono text-sm text-[var(--muted-foreground)]">{String(index+1).padStart(2,"0")}</span><div><div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold sm:text-base">{s.title}</h3>{index===0&&<span className="rounded-full bg-[var(--positive-soft)] px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-[var(--positive)]">Priorité</span>}</div><p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">{s.description}</p><div className="mt-3 flex flex-wrap gap-4 text-[10px] text-[var(--muted-foreground)]"><span>Effort · {s.effort}</span><span>Coût · {s.cost}</span><span>Carbon ROI · {s.cost==="Économie"?"Très élevé":"À arbitrer"}</span></div></div><div className="text-left sm:text-right"><p className="text-lg font-semibold text-[var(--positive)]">−{formatKg(s.savingKg)}</p><p className="text-[10px] text-[var(--muted-foreground)]">par an</p></div></div>)}</div>
-        <div className="mt-5 panel p-6 sm:p-8"><div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-sm font-semibold">Objectif personnel</p><h3 className="mt-4 text-3xl font-semibold tracking-[-.05em]">De {formatTons(result.totalKg)} t à 5,0 t en 2030</h3><p className="mt-2 text-sm text-[var(--muted-foreground)]">Une trajectoire progressive construite à partir de vos meilleurs leviers.</p></div><Button variant="accent">Définir mon objectif <ArrowRight size={15}/></Button></div><div className="mt-10 grid grid-cols-5 gap-2 border-t border-[var(--border)] pt-8">{[2026,2027,2028,2029,2030].map((year,i)=>{const value=result.totalKg-(result.totalKg-5000)*(i/4);return <div key={year} className="relative text-center"><div className="mx-auto mb-3 size-2.5 rounded-full bg-[var(--accent)] ring-4 ring-[var(--accent-soft)]"/><p className="text-xs font-semibold">{formatTons(value)} t</p><p className="mt-1 text-[10px] text-[var(--muted-foreground)]">{year}</p></div>})}</div></div>
-      </section>
+          <section id="actions" className="scroll-mt-24 pt-24">
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+              <div>
+                <p className="eyebrow">Réduire</p>
+                <h2 className="mt-3 text-3xl font-semibold tracking-[-.045em]">
+                  Votre plan d’action, par impact.
+                </h2>
+              </div>
+              <Button variant="secondary" onClick={exportPlan}>
+                <Download size={15} /> Exporter le plan
+              </Button>
+            </div>
+            <div className="mt-7 overflow-hidden rounded-[24px] border border-[var(--border)] bg-[var(--card)]">
+              {scenarios.slice(0, 5).map((s, index) => (
+                <div
+                  key={s.id}
+                  className="grid gap-5 border-b border-[var(--border)] p-5 last:border-0 sm:grid-cols-[40px_1fr_auto] sm:items-center sm:p-6"
+                >
+                  <span className="font-mono text-sm text-[var(--muted-foreground)]">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-sm font-semibold sm:text-base">
+                        {s.title}
+                      </h3>
+                      {index === 0 && (
+                        <span className="rounded-full bg-[var(--positive-soft)] px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-[var(--positive)]">
+                          Priorité
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">
+                      {s.description}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-4 text-[10px] text-[var(--muted-foreground)]">
+                      <span>Effort · {s.effort}</span>
+                      <span>Coût · {s.cost}</span>
+                      <span>
+                        Carbon ROI ·{" "}
+                        {s.cost === "Économie" ? "Très élevé" : "À arbitrer"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-left sm:text-right">
+                    <p className="text-lg font-semibold text-[var(--positive)]">
+                      −{formatKg(s.savingKg)}
+                    </p>
+                    <p className="text-[10px] text-[var(--muted-foreground)]">
+                      par an
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-5 panel p-6 sm:p-8">
+              <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <p className="text-sm font-semibold">Objectif personnel</p>
+                  <h3 className="mt-4 text-3xl font-semibold tracking-[-.05em]">
+                    De {formatTons(result.totalKg)} t à {formatTons(goalKg)} t
+                    en 2030
+                  </h3>
+                  <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+                    Une trajectoire progressive construite à partir de vos
+                    meilleurs leviers.
+                  </p>
+                </div>
+                <Dialog.Root
+                  open={goalDialogOpen}
+                  onOpenChange={setGoalDialogOpen}
+                >
+                  <Dialog.Trigger asChild>
+                    <Button variant="accent">
+                      Définir mon objectif <ArrowRight size={15} />
+                    </Button>
+                  </Dialog.Trigger>
+                  <Dialog.Portal>
+                    <Dialog.Overlay className="fixed inset-0 z-[80] bg-black/45 backdrop-blur-sm" />
+                    <Dialog.Content className="fixed left-1/2 top-1/2 z-[90] w-[calc(100%-32px)] max-w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-[26px] border border-[var(--border)] bg-[var(--card)] p-6 shadow-2xl outline-none sm:p-8">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <Dialog.Title className="text-2xl font-semibold tracking-[-.035em]">
+                            Votre objectif 2030
+                          </Dialog.Title>
+                          <Dialog.Description className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
+                            Choisissez une cible ambitieuse mais réaliste. Elle
+                            restera uniquement dans ce navigateur.
+                          </Dialog.Description>
+                        </div>
+                        <Dialog.Close asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Fermer"
+                          >
+                            <X size={18} />
+                          </Button>
+                        </Dialog.Close>
+                      </div>
+                      <div className="mt-7 grid gap-3 sm:grid-cols-3">
+                        {[5000, 3500, 2000].map((target) => (
+                          <button
+                            key={target}
+                            type="button"
+                            disabled={target >= result.totalKg}
+                            onClick={() => saveGoal(target)}
+                            className={cn(
+                              "rounded-2xl border p-5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                              goalKg === target
+                                ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+                                : "border-[var(--border)] hover:bg-[var(--surface)]",
+                            )}
+                          >
+                            <span className="block text-2xl font-semibold tracking-[-.05em]">
+                              {formatTons(target)} t
+                            </span>
+                            <span className="mt-2 block text-[10px] text-[var(--muted-foreground)]">
+                              {target === 2000
+                                ? "Trajectoire long terme"
+                                : target === 3500
+                                  ? "Ambitieux"
+                                  : "Progressif"}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </Dialog.Content>
+                  </Dialog.Portal>
+                </Dialog.Root>
+              </div>
+              <div className="mt-10 grid grid-cols-5 gap-2 border-t border-[var(--border)] pt-8">
+                {[2026, 2027, 2028, 2029, 2030].map((year, i) => {
+                  const value =
+                    result.totalKg - (result.totalKg - goalKg) * (i / 4);
+                  return (
+                    <div key={year} className="relative text-center">
+                      <div className="mx-auto mb-3 size-2.5 rounded-full bg-[var(--accent)] ring-4 ring-[var(--accent-soft)]" />
+                      <p className="text-xs font-semibold">
+                        {formatTons(value)} t
+                      </p>
+                      <p className="mt-1 text-[10px] text-[var(--muted-foreground)]">
+                        {year}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
 
-      <section id="methodology" className="scroll-mt-24 pb-24 pt-24"><div><p className="eyebrow">Transparence</p><h2 className="mt-3 text-3xl font-semibold tracking-[-.045em]">Méthode & sources</h2><p className="mt-3 max-w-[650px] text-sm leading-6 text-[var(--muted-foreground)]">Cette V1 applique une méthode simple : activité annuelle × facteur d’émission = kg CO₂e. Les facteurs sont séparés du code métier et le bilan conserve leur version.</p></div><div className="mt-7 grid gap-5 lg:grid-cols-[.72fr_1.28fr]"><div className="panel p-6"><p className="text-sm font-semibold">Qualité de votre bilan</p><div className="mt-6 flex items-end gap-3"><p className="text-5xl font-semibold tracking-[-.07em]">{result.confidenceScore}%</p><p className="pb-1 text-xs text-[var(--muted-foreground)]">score de confiance</p></div><div className="mt-5 h-2 overflow-hidden rounded-full bg-[var(--surface)]"><div className="h-full rounded-full bg-[var(--accent)]" style={{width:`${result.confidenceScore}%`}}/></div><ul className="mt-6 space-y-3 text-xs text-[var(--muted-foreground)]"><li className="flex gap-2"><Check size={14} className="text-[var(--positive)]"/> Facteurs carbone officiels ou reconnus</li><li className="flex gap-2"><Check size={14} className="text-[var(--positive)]"/> Activités estimées clairement signalées</li><li className="flex gap-2"><Check size={14} className="text-[var(--positive)]"/> Version du modèle conservée</li></ul><Button asChild variant="secondary" className="mt-7 w-full"><Link href="/questionnaire">Ajouter des données précises</Link></Button></div><div className="panel overflow-hidden"><div className="border-b border-[var(--border)] p-6"><p className="text-sm font-semibold">Registre des facteurs</p><p className="mt-1 text-xs text-[var(--muted-foreground)]">{emissionFactors.length} facteurs · version {result.factorVersion}</p></div><div className="max-h-[420px] overflow-y-auto">{emissionFactors.map(f=><a key={f.id} href={f.sourceUrl} target="_blank" rel="noreferrer" className="grid grid-cols-[1fr_auto] gap-4 border-b border-[var(--border)] px-6 py-4 last:border-0 hover:bg-[var(--surface)]"><span><span className="block text-xs font-semibold">{f.label}</span><span className="mt-1 block text-[10px] text-[var(--muted-foreground)]">{f.source} · {f.year} · confiance {f.confidence}</span></span><span className="text-right"><span className="block font-mono text-xs">{f.value.toLocaleString("fr-FR",{maximumFractionDigits:6})}</span><span className="text-[9px] text-[var(--muted-foreground)]">{f.unit}</span></span></a>)}</div></div></div><div className="mt-5 flex flex-col justify-between gap-4 rounded-2xl bg-[var(--surface)] p-5 text-xs text-[var(--muted-foreground)] sm:flex-row sm:items-center"><p>Vos réponses sont enregistrées localement dans ce navigateur. Aucun compte n’a été créé.</p><div className="flex gap-4"><button className="font-semibold text-[var(--foreground)] hover:underline">Exporter mes données</button><button onClick={reset} className="font-semibold text-[var(--foreground)] hover:underline">Supprimer mes données</button></div></div></section>
-    </div></main>
-  </div>;
+          <section id="methodology" className="scroll-mt-24 pb-24 pt-24">
+            <div>
+              <p className="eyebrow">Transparence</p>
+              <h2 className="mt-3 text-3xl font-semibold tracking-[-.045em]">
+                Méthode & sources
+              </h2>
+              <p className="mt-3 max-w-[650px] text-sm leading-6 text-[var(--muted-foreground)]">
+                Cette V1 applique une méthode simple : activité annuelle ×
+                facteur d’émission = kg CO₂e. Les facteurs sont séparés du code
+                métier et le bilan conserve leur version.
+              </p>
+            </div>
+            <div className="mt-7 grid gap-5 lg:grid-cols-[.72fr_1.28fr]">
+              <div className="panel p-6">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold">Qualité des données</p>
+                  <span className="rounded-full bg-[var(--accent-soft)] px-2 py-1 text-[8px] font-bold uppercase tracking-wide text-[var(--accent)]">
+                    Expérimental
+                  </span>
+                </div>
+                <div className="mt-6 flex items-end gap-3">
+                  <p className="text-5xl font-semibold tracking-[-.07em]">
+                    {result.confidenceScore}%
+                  </p>
+                  <p className="pb-1 text-xs text-[var(--muted-foreground)]">
+                    niveau indicatif
+                  </p>
+                </div>
+                <div className="mt-5 h-2 overflow-hidden rounded-full bg-[var(--surface)]">
+                  <div
+                    className="h-full rounded-full bg-[var(--accent)]"
+                    style={{ width: `${result.confidenceScore}%` }}
+                  />
+                </div>
+                <p className="mt-3 text-[10px] leading-4 text-[var(--muted-foreground)]">
+                  Ce niveau mesure la part de données réelles renseignées. Ce
+                  n’est pas une probabilité statistique.
+                </p>
+                <ul className="mt-6 space-y-3 text-xs text-[var(--muted-foreground)]">
+                  <li className="flex gap-2">
+                    <Check size={14} className="text-[var(--positive)]" />{" "}
+                    Facteurs carbone officiels ou reconnus
+                  </li>
+                  <li className="flex gap-2">
+                    <Check size={14} className="text-[var(--positive)]" />{" "}
+                    Activités estimées clairement signalées
+                  </li>
+                  <li className="flex gap-2">
+                    <Check size={14} className="text-[var(--positive)]" />{" "}
+                    Version du modèle conservée
+                  </li>
+                </ul>
+                <Button asChild variant="secondary" className="mt-7 w-full">
+                  <Link href="/questionnaire">
+                    Ajouter des données précises
+                  </Link>
+                </Button>
+              </div>
+              <div className="panel overflow-hidden">
+                <div className="border-b border-[var(--border)] p-6">
+                  <p className="text-sm font-semibold">Registre des facteurs</p>
+                  <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                    {emissionFactors.length} facteurs · version{" "}
+                    {result.factorVersion}
+                  </p>
+                </div>
+                <div className="max-h-[420px] overflow-y-auto">
+                  {emissionFactors.map((f) => (
+                    <a
+                      key={f.id}
+                      href={f.sourceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="grid grid-cols-[1fr_auto] gap-4 border-b border-[var(--border)] px-6 py-4 last:border-0 hover:bg-[var(--surface)]"
+                    >
+                      <span>
+                        <span className="block text-xs font-semibold">
+                          {f.label}
+                        </span>
+                        <span className="mt-1 block text-[10px] text-[var(--muted-foreground)]">
+                          {f.source} · {f.year} · confiance {f.confidence}
+                        </span>
+                      </span>
+                      <span className="text-right">
+                        <span className="block font-mono text-xs">
+                          {f.value.toLocaleString("fr-FR", {
+                            maximumFractionDigits: 6,
+                          })}
+                        </span>
+                        <span className="text-[9px] text-[var(--muted-foreground)]">
+                          {f.unit}
+                        </span>
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="mt-5 flex flex-col justify-between gap-4 rounded-2xl bg-[var(--surface)] p-5 text-xs text-[var(--muted-foreground)] sm:flex-row sm:items-center">
+              <p>
+                Vos réponses sont enregistrées localement dans ce navigateur.
+                Aucun compte n’a été créé.
+              </p>
+              <div className="flex gap-4">
+                <button
+                  onClick={exportData}
+                  className="font-semibold text-[var(--foreground)] hover:underline"
+                >
+                  Exporter mes données
+                </button>
+                <button
+                  onClick={deleteAllData}
+                  className="font-semibold text-[var(--foreground)] hover:underline"
+                >
+                  Supprimer mes données
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  );
 }

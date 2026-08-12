@@ -28,3 +28,4 @@ export const defaultAnswers: AssessmentAnswers = {
 };
 
 export const STORAGE_KEY = "carbon-os-assessment-v1";
+export const GOAL_STORAGE_KEY = "carbon-os-goal-v1";
