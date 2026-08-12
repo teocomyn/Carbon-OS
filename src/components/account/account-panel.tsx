@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import { Turnstile } from "@marsidev/react-turnstile";
 import {
   Check,
   Cloud,
@@ -13,19 +14,34 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { clearLocalHistory } from "@/lib/history";
+import { trackCarbonEvent } from "@/lib/analytics";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+
+const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
 export function AccountPanel({
   configured,
   email,
+  initialMessage = "",
 }: {
   configured: boolean;
   email: string | null;
+  initialMessage?: string;
 }) {
   const router = useRouter();
   const [address, setAddress] = useState("");
   const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(initialMessage);
+  const [captchaToken, setCaptchaToken] = useState<string>();
+  const [captchaKey, setCaptchaKey] = useState(0);
+
+  useEffect(() => {
+    if (!email || !initialMessage.startsWith("Connexion réussie")) return;
+    const key = "carbon-os-account-activated-tracked-v1";
+    if (localStorage.getItem(key)) return;
+    trackCarbonEvent({ name: "Compte activé" });
+    localStorage.setItem(key, "1");
+  }, [email, initialMessage]);
 
   const requestMagicLink = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -34,9 +50,16 @@ export function AccountPanel({
     setPending(true);
     setMessage("");
     const { error } = await supabase.auth.signInWithOtp({
-      email: address,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      email: address.trim().toLowerCase(),
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        captchaToken,
+      },
     });
+    if (turnstileSiteKey) {
+      setCaptchaToken(undefined);
+      setCaptchaKey((current) => current + 1);
+    }
     setPending(false);
     setMessage(
       error
@@ -82,11 +105,12 @@ export function AccountPanel({
           </span>
           <div>
             <h2 className="text-xl font-semibold">
-              Synchronisation prête à connecter
+              Synchronisation bientôt disponible
             </h2>
             <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
-              L’historique local fonctionne déjà. Le service distant sera activé
-              dès que les variables Supabase auront été ajoutées au déploiement.
+              Votre historique fonctionne déjà sur cet appareil. Nous ouvrirons
+              la synchronisation entre plusieurs appareils dès qu’elle sera
+              entièrement prête et testée.
             </p>
             <Button asChild variant="secondary" className="mt-5">
               <Link href="/dashboard">Continuer sans compte</Link>
@@ -146,25 +170,47 @@ export function AccountPanel({
       </p>
       <form
         onSubmit={requestMagicLink}
-        className="mt-7 flex max-w-[620px] flex-col gap-3 sm:flex-row"
+        className="mt-7 max-w-[620px]"
       >
-        <label className="sr-only" htmlFor="account-email">
-          Adresse e-mail
-        </label>
-        <input
-          id="account-email"
-          type="email"
-          value={address}
-          onChange={(event) => setAddress(event.target.value)}
-          required
-          autoComplete="email"
-          placeholder="vous@exemple.fr"
-          className="h-11 flex-1 rounded-full border border-[var(--border)] bg-[var(--background)] px-5 text-sm outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-soft)]"
-        />
-        <Button type="submit" variant="accent" disabled={pending}>
-          {pending && <LoaderCircle size={15} className="animate-spin" />}
-          Envoyer le lien
-        </Button>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <label className="sr-only" htmlFor="account-email">
+            Adresse e-mail
+          </label>
+          <input
+            id="account-email"
+            type="email"
+            value={address}
+            onChange={(event) => setAddress(event.target.value)}
+            required
+            autoComplete="email"
+            placeholder="vous@exemple.fr"
+            className="h-11 flex-1 rounded-full border border-[var(--border)] bg-[var(--background)] px-5 text-sm outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-soft)]"
+          />
+          <Button
+            type="submit"
+            variant="accent"
+            disabled={pending || Boolean(turnstileSiteKey && !captchaToken)}
+          >
+            {pending && <LoaderCircle size={15} className="animate-spin" />}
+            Envoyer le lien
+          </Button>
+        </div>
+        {turnstileSiteKey && (
+          <div className="mt-4 overflow-hidden rounded-xl">
+            <Turnstile
+              key={captchaKey}
+              siteKey={turnstileSiteKey}
+              onSuccess={setCaptchaToken}
+              onExpire={() => setCaptchaToken(undefined)}
+              onError={() => {
+                setCaptchaToken(undefined);
+                setMessage(
+                  "La vérification anti-robot n’a pas abouti. Rechargez la page pour réessayer.",
+                );
+              }}
+            />
+          </div>
+        )}
       </form>
       {message && (
         <p

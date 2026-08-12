@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDown,
   ArrowRight,
-  BarChart3,
+  CalendarDays,
   Check,
   Cloud,
   ChevronDown,
@@ -15,7 +15,6 @@ import {
   CircleHelp,
   Download,
   ExternalLink,
-  FileText,
   Gauge,
   History,
   Home,
@@ -25,6 +24,7 @@ import {
   Menu,
   Plane,
   Repeat2,
+  RefreshCw,
   RotateCcw,
   Share2,
   ShoppingBag,
@@ -51,9 +51,23 @@ import {
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { defaultAnswers, GOAL_STORAGE_KEY, STORAGE_KEY } from "@/data/defaults";
+import {
+  ACTION_PLAN_STORAGE_KEY,
+  defaultAnswers,
+  GOAL_STORAGE_KEY,
+  STORAGE_KEY,
+} from "@/data/defaults";
 import { emissionFactors, factorById } from "@/data/emission-factors";
 import { calculateAssessment } from "@/lib/calculator";
+import {
+  mergeActionPlans,
+  normalizeActionPlan,
+  parseActionPlan,
+} from "@/lib/action-plan";
+import {
+  secondAssessmentDelay,
+  trackCarbonEvent,
+} from "@/lib/analytics";
 import {
   addLocalSnapshot,
   calculateProgress,
@@ -66,6 +80,8 @@ import {
 import { buildScenarios } from "@/lib/recommendations";
 import { CARBON_SIGNAL_VIDEO } from "@/lib/media";
 import type {
+  ActionPlanItem,
+  ActionPlanStatus,
   AssessmentAnswers,
   AssessmentSnapshot,
   CalculationLine,
@@ -84,13 +100,17 @@ const categoryIcons: Record<
   purchases: ShoppingBag,
   services: Layers3,
 };
-const navItems = [
-  { id: "overview", label: "Vue d’ensemble", icon: BarChart3 },
-  { id: "progress", label: "Progression", icon: History },
-  { id: "emissions", label: "Émissions", icon: Layers3 },
-  { id: "simulator", label: "Simulateur", icon: Gauge },
-  { id: "actions", label: "Plan d’action", icon: Target },
-  { id: "methodology", label: "Méthode & sources", icon: FileText },
+type DashboardView = "today" | "act" | "progress" | "understand";
+
+const navItems: {
+  id: DashboardView;
+  label: string;
+  icon: React.ComponentType<{ size?: number }>;
+}[] = [
+  { id: "today", label: "Aujourd’hui", icon: Home },
+  { id: "act", label: "Agir", icon: Target },
+  { id: "progress", label: "Mes progrès", icon: History },
+  { id: "understand", label: "Comprendre", icon: CircleHelp },
 ];
 
 type SyncStatus = "checking" | "local" | "syncing" | "synced" | "error";
@@ -98,6 +118,7 @@ type SyncStatus = "checking" | "local" | "syncing" | "synced" | "error";
 async function syncHistoryWithCloud(
   history: AssessmentSnapshot[],
   goalKg: number,
+  actionPlan: ActionPlanItem[],
   preferCloudGoal = false,
 ) {
   const cloudResponse = await fetch("/api/sync", {
@@ -110,6 +131,7 @@ async function syncHistoryWithCloud(
     authenticated: boolean;
     history: AssessmentSnapshot[];
     goalKg: number | null;
+    actionPlan: ActionPlanItem[];
   };
   if (!cloud.configured || !cloud.authenticated) return null;
   const merged = mergeHistories(history, cloud.history);
@@ -118,23 +140,23 @@ async function syncHistoryWithCloud(
       ? cloud.goalKg
       : goalKg;
 
+  const mergedPlan = mergeActionPlans(actionPlan, cloud.actionPlan ?? []);
   const response = await fetch("/api/sync", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ history: merged, goalKg: resolvedGoal }),
+    body: JSON.stringify({
+      history: merged,
+      goalKg: resolvedGoal,
+      actionPlan: mergedPlan,
+    }),
   });
   if (response.status === 401 || response.status === 503) return null;
   if (!response.ok) throw new Error("sync_failed");
   return (await response.json()) as {
     history: AssessmentSnapshot[];
     goalKg: number | null;
+    actionPlan: ActionPlanItem[];
   };
-}
-
-function navigateTo(id: string) {
-  document
-    .getElementById(id)
-    ?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function downloadJson(filename: string, payload: unknown) {
@@ -396,10 +418,16 @@ function ScenarioCard({
   scenario,
   active,
   onToggle,
+  inPlan,
+  planFull,
+  onAddToPlan,
 }: {
   scenario: Scenario;
   active: boolean;
   onToggle: () => void;
+  inPlan: boolean;
+  planFull: boolean;
+  onAddToPlan: () => void;
 }) {
   const icons: Record<string, React.ComponentType<{ size?: number }>> = {
     zap: Zap,
@@ -412,68 +440,87 @@ function ScenarioCard({
   };
   const Icon = icons[scenario.icon] ?? Sparkles;
   return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onToggle}
+    <div
       className={cn(
-        "group flex w-full items-start gap-4 rounded-2xl border p-5 text-left transition-all",
+        "group flex w-full flex-col rounded-2xl border text-left transition-all",
         active
           ? "border-[var(--accent)] bg-[var(--accent-soft)]"
           : "border-[var(--border)] bg-[var(--card)] hover:border-[var(--muted-foreground)]",
       )}
     >
-      <span
-        className={cn(
-          "grid size-10 shrink-0 place-items-center rounded-xl",
-          active ? "bg-[var(--accent)] text-white" : "bg-[var(--surface)]",
-        )}
+      <button
+        type="button"
+        aria-pressed={active}
+        onClick={onToggle}
+        className="flex w-full items-start gap-4 p-5 text-left"
       >
-        <Icon size={18} />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold">{scenario.title}</span>
-        <span className="mt-1 block text-xs leading-5 text-[var(--muted-foreground)]">
-          {scenario.description}
-        </span>
-        <span className="mt-3 flex flex-wrap gap-2 text-[10px]">
-          <span className="rounded-full bg-[var(--surface)] px-2 py-1">
-            Effort {scenario.effort.toLowerCase()}
-          </span>
-          <span className="rounded-full bg-[var(--surface)] px-2 py-1">
-            {scenario.cost}
-          </span>
-        </span>
-      </span>
-      <span className="text-right">
-        <span className="block whitespace-nowrap text-sm font-bold text-[var(--positive)]">
-          −{formatKg(scenario.savingKg)}
-        </span>
         <span
           className={cn(
-            "ml-auto mt-4 grid size-5 place-items-center rounded-full border",
-            active
-              ? "border-[var(--accent)] bg-[var(--accent)] text-white"
-              : "border-[var(--border)]",
+            "grid size-10 shrink-0 place-items-center rounded-xl",
+            active ? "bg-[var(--accent)] text-white" : "bg-[var(--surface)]",
           )}
         >
-          <Check size={12} className={active ? "opacity-100" : "opacity-0"} />
+          <Icon size={18} />
         </span>
-      </span>
-    </button>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold">{scenario.title}</span>
+          <span className="mt-1 block text-xs leading-5 text-[var(--muted-foreground)]">
+            {scenario.description}
+          </span>
+          <span className="mt-3 flex flex-wrap gap-2 text-[10px]">
+            <span className="rounded-full bg-[var(--surface)] px-2 py-1">
+              Effort {scenario.effort.toLowerCase()}
+            </span>
+            <span className="rounded-full bg-[var(--surface)] px-2 py-1">
+              {scenario.cost}
+            </span>
+          </span>
+        </span>
+        <span className="text-right">
+          <span className="block whitespace-nowrap text-sm font-bold text-[var(--positive)]">
+            −{formatKg(scenario.savingKg)}
+          </span>
+          <span
+            className={cn(
+              "ml-auto mt-4 grid size-5 place-items-center rounded-full border",
+              active
+                ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+                : "border-[var(--border)]",
+            )}
+          >
+            <Check size={12} className={active ? "opacity-100" : "opacity-0"} />
+          </span>
+        </span>
+      </button>
+      <div className="mx-5 border-t border-[var(--border)] py-4">
+        <button
+          type="button"
+          onClick={onAddToPlan}
+          disabled={inPlan || planFull}
+          className="text-xs font-semibold text-[var(--accent)] disabled:text-[var(--muted-foreground)]"
+        >
+          {inPlan
+            ? "Ajoutée à mon plan"
+            : planFull
+              ? "Plan complet · 3 actions"
+              : "+ Ajouter à mon plan"}
+        </button>
+      </div>
+    </div>
   );
 }
 
 export function Dashboard() {
   const [answers, setAnswers] = useState<AssessmentAnswers>(defaultAnswers);
   const [hydrated, setHydrated] = useState(false);
-  const [reveal, setReveal] = useState(false);
+  const [activeView, setActiveView] = useState<DashboardView>("today");
   const [activeScenarios, setActiveScenarios] = useState<string[]>([]);
   const [mobileNav, setMobileNav] = useState(false);
   const [goalKg, setGoalKg] = useState(5000);
   const [goalDialogOpen, setGoalDialogOpen] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [history, setHistory] = useState<AssessmentSnapshot[]>([]);
+  const [actionPlan, setActionPlan] = useState<ActionPlanItem[]>([]);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("checking");
   useEffect(() => {
     const hydrationTimer = window.setTimeout(() => {
@@ -493,7 +540,22 @@ export function Dashboard() {
           setGoalKg(storedGoal);
         }
       } catch {}
+      const requestedView = new URLSearchParams(window.location.search).get(
+        "view",
+      );
+      if (
+        requestedView === "today" ||
+        requestedView === "act" ||
+        requestedView === "progress" ||
+        requestedView === "understand"
+      ) {
+        setActiveView(requestedView);
+      }
       let loadedHistory = readLocalHistory();
+      const loadedPlan = parseActionPlan(
+        localStorage.getItem(ACTION_PLAN_STORAGE_KEY),
+      );
+      setActionPlan(loadedPlan);
       if (!loadedHistory.length && localStorage.getItem(STORAGE_KEY)) {
         loadedHistory = addLocalSnapshot(
           createAssessmentSnapshot({
@@ -507,7 +569,12 @@ export function Dashboard() {
       setHistory(loadedHistory);
       setHydrated(true);
       setSyncStatus("syncing");
-      syncHistoryWithCloud(loadedHistory, loadedGoal, !hasLocalGoal)
+      syncHistoryWithCloud(
+        loadedHistory,
+        loadedGoal,
+        loadedPlan,
+        !hasLocalGoal,
+      )
         .then((cloud) => {
           if (!cloud) {
             setSyncStatus("local");
@@ -517,6 +584,15 @@ export function Dashboard() {
             mergeHistories(loadedHistory, cloud.history),
           );
           setHistory(merged);
+          const mergedPlan = mergeActionPlans(
+            loadedPlan,
+            cloud.actionPlan ?? [],
+          );
+          setActionPlan(mergedPlan);
+          localStorage.setItem(
+            ACTION_PLAN_STORAGE_KEY,
+            JSON.stringify(mergedPlan),
+          );
           if (cloud.goalKg && cloud.goalKg >= 2000) {
             setGoalKg(cloud.goalKg);
             localStorage.setItem(GOAL_STORAGE_KEY, String(cloud.goalKg));
@@ -524,11 +600,6 @@ export function Dashboard() {
           setSyncStatus("synced");
         })
         .catch(() => setSyncStatus("error"));
-      if (!sessionStorage.getItem("carbon-os-revealed")) {
-        setReveal(true);
-        sessionStorage.setItem("carbon-os-revealed", "1");
-        window.setTimeout(() => setReveal(false), 2200);
-      }
     }, 0);
     return () => window.clearTimeout(hydrationTimer);
   }, []);
@@ -548,6 +619,18 @@ export function Dashboard() {
     .sort((a, b) => b.kgCo2e - a.kgCo2e)
     .slice(0, 5);
   const topAction = scenarios[0];
+  const plannedActions = actionPlan
+    .map((item) => ({
+      item,
+      scenario: scenarios.find((scenario) => scenario.id === item.scenarioId),
+    }))
+    .filter(
+      (entry): entry is { item: ActionPlanItem; scenario: Scenario } =>
+        Boolean(entry.scenario),
+    );
+  const weeklyPriority =
+    plannedActions.find(({ item }) => item.status !== "completed")?.scenario ??
+    topAction;
   const progress = useMemo(() => calculateProgress(history), [history]);
   const progressData = history.map((snapshot) => ({
     date: new Intl.DateTimeFormat("fr-FR", {
@@ -557,16 +640,27 @@ export function Dashboard() {
     }).format(new Date(snapshot.createdAt)),
     tonnes: Number((snapshot.result.totalKg / 1000).toFixed(2)),
   }));
-  const carbonScore = Math.round(
-    Math.max(0, Math.min(100, 100 - result.totalKg / 100)),
-  );
+  const confidenceLabel =
+    result.confidenceScore >= 80
+      ? "élevée"
+      : result.confidenceScore >= 60
+        ? "moyenne"
+        : "à affiner";
+  const changeView = (view: DashboardView) => {
+    setActiveView(view);
+    setMobileNav(false);
+    window.history.replaceState(null, "", `/dashboard?view=${view}`);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
   const toggleScenario = (id: string) =>
     setActiveScenarios((current) =>
       current.includes(id) ? current.filter((x) => x !== id) : [...current, id],
     );
   const reset = () => {
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(ACTION_PLAN_STORAGE_KEY);
     setAnswers(defaultAnswers);
+    setActionPlan([]);
     setActiveScenarios([]);
   };
   const deleteAllData = async () => {
@@ -580,10 +674,12 @@ export function Dashboard() {
       return;
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(GOAL_STORAGE_KEY);
+    localStorage.removeItem(ACTION_PLAN_STORAGE_KEY);
     clearLocalHistory();
     setAnswers(defaultAnswers);
     setGoalKg(5000);
     setHistory([]);
+    setActionPlan([]);
     setActiveScenarios([]);
     if (syncStatus === "synced") {
       const response = await fetch("/api/sync", { method: "DELETE" });
@@ -601,14 +697,16 @@ export function Dashboard() {
     localStorage.setItem(GOAL_STORAGE_KEY, String(value));
     setGoalDialogOpen(false);
     setFeedback(`Objectif enregistré : ${formatTons(value)} t en 2030`);
+    trackCarbonEvent({ name: "Objectif défini" });
     if (syncStatus === "synced") {
       setSyncStatus("syncing");
-      syncHistoryWithCloud(history, value)
+      syncHistoryWithCloud(history, value, actionPlan)
         .then(() => setSyncStatus("synced"))
         .catch(() => setSyncStatus("error"));
     }
   };
   const saveCurrentAssessment = () => {
+    const isSecondAssessment = history.length === 1;
     const updatedHistory = addLocalSnapshot(
       createAssessmentSnapshot({
         answers,
@@ -619,15 +717,109 @@ export function Dashboard() {
     );
     setHistory(updatedHistory);
     setFeedback("Nouveau point de progression enregistré");
+    if (isSecondAssessment)
+      trackCarbonEvent({
+        name: "Second bilan réalisé",
+        data: { delai: secondAssessmentDelay(history[0]!.createdAt) },
+      });
     if (syncStatus === "synced") {
       setSyncStatus("syncing");
-      syncHistoryWithCloud(updatedHistory, goalKg)
+      syncHistoryWithCloud(updatedHistory, goalKg, actionPlan)
         .then((cloud) => {
           if (cloud) setHistory(writeLocalHistory(cloud.history));
           setSyncStatus("synced");
         })
         .catch(() => setSyncStatus("error"));
     }
+  };
+  const retrySync = () => {
+    setSyncStatus("syncing");
+    setFeedback("Nouvelle tentative de synchronisation…");
+    syncHistoryWithCloud(history, goalKg, actionPlan)
+      .then((cloud) => {
+        if (!cloud) {
+          setSyncStatus("local");
+          setFeedback("Connectez-vous pour activer la synchronisation");
+          return;
+        }
+        const merged = writeLocalHistory(
+          mergeHistories(history, cloud.history),
+        );
+        setHistory(merged);
+        const mergedPlan = mergeActionPlans(
+          actionPlan,
+          cloud.actionPlan ?? [],
+        );
+        setActionPlan(mergedPlan);
+        localStorage.setItem(
+          ACTION_PLAN_STORAGE_KEY,
+          JSON.stringify(mergedPlan),
+        );
+        if (cloud.goalKg && cloud.goalKg >= 2000) {
+          setGoalKg(cloud.goalKg);
+          localStorage.setItem(GOAL_STORAGE_KEY, String(cloud.goalKg));
+        }
+        setSyncStatus("synced");
+        setFeedback("Synchronisation terminée");
+      })
+      .catch(() => {
+        setSyncStatus("error");
+        setFeedback(
+          "La synchronisation reste indisponible. Vos données locales sont conservées.",
+        );
+      });
+  };
+  const persistPlan = (nextPlan: ActionPlanItem[]) => {
+    const normalized = normalizeActionPlan(nextPlan);
+    setActionPlan(normalized);
+    localStorage.setItem(ACTION_PLAN_STORAGE_KEY, JSON.stringify(normalized));
+    if (syncStatus === "synced") {
+      setSyncStatus("syncing");
+      syncHistoryWithCloud(history, goalKg, normalized)
+        .then(() => setSyncStatus("synced"))
+        .catch(() => setSyncStatus("error"));
+    }
+  };
+  const addToPlan = (scenario: Scenario) => {
+    if (
+      actionPlan.some((item) => item.scenarioId === scenario.id) ||
+      actionPlan.length >= 3
+    )
+      return;
+    const now = new Date().toISOString();
+    persistPlan([
+      ...actionPlan,
+      {
+        scenarioId: scenario.id,
+        status: "to_try",
+        startedAt: null,
+        addedAt: now,
+        updatedAt: now,
+      },
+    ]);
+    setFeedback("Action ajoutée à votre plan");
+    trackCarbonEvent({
+      name: "Action sélectionnée",
+      data: { action: scenario.id },
+    });
+  };
+  const updatePlanItem = (
+    scenarioId: string,
+    changes: Partial<Pick<ActionPlanItem, "status" | "startedAt">>,
+  ) => {
+    persistPlan(
+      actionPlan.map((item) =>
+        item.scenarioId === scenarioId
+          ? { ...item, ...changes, updatedAt: new Date().toISOString() }
+          : item,
+      ),
+    );
+  };
+  const removeFromPlan = (scenarioId: string) => {
+    persistPlan(
+      actionPlan.filter((item) => item.scenarioId !== scenarioId),
+    );
+    setFeedback("Action retirée du plan");
   };
   const exportData = () => {
     downloadJson("carbon-os-bilan-2026.json", {
@@ -636,6 +828,7 @@ export function Dashboard() {
       result,
       goal: { targetKg: goalKg, year: 2030 },
       history,
+      actionPlan,
     });
     setFeedback("Bilan exporté au format JSON");
   };
@@ -645,10 +838,7 @@ export function Dashboard() {
       currentKg: result.totalKg,
       targetKg: goalKg,
       targetYear: 2030,
-      recommendations: scenarios.slice(0, 5),
-      selectedScenarios: scenarios.filter((scenario) =>
-        activeScenarios.includes(scenario.id),
-      ),
+      actions: plannedActions,
     });
     setFeedback("Plan d’action exporté au format JSON");
   };
@@ -684,37 +874,6 @@ export function Dashboard() {
     );
   return (
     <div className="process-shell dashboard-shell min-h-screen bg-[var(--background)]">
-      <AnimatePresence>
-        {reveal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0, transition: { duration: 0.45 } }}
-            className="fixed inset-0 z-[100] grid place-items-center bg-[#0b0c0f] text-white"
-          >
-            <motion.div
-              initial={{ scale: 0.86, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-              className="text-center"
-            >
-              <p className="text-xs font-semibold uppercase tracking-[.16em] text-white/45">
-                Votre empreinte annuelle estimée
-              </p>
-              <p className="number-tabular mt-7 text-[clamp(6rem,18vw,12rem)] font-semibold leading-none tracking-[-.09em]">
-                {formatTons(result.totalKg)}
-              </p>
-              <p className="mt-4 text-lg text-white/60">tonnes CO₂e / an</p>
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: 140 }}
-                transition={{ delay: 0.5, duration: 0.8 }}
-                className="mx-auto mt-9 h-px bg-gradient-to-r from-transparent via-[#286f53] to-transparent"
-              />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] border-r border-[var(--border)] bg-[var(--card)] p-5 lg:flex lg:flex-col">
         <div className="px-2 py-2">
           <Logo />
@@ -723,8 +882,14 @@ export function Dashboard() {
           {navItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => navigateTo(item.id)}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[var(--muted-foreground)] transition-colors hover:bg-[var(--surface)] hover:text-[var(--foreground)]"
+              onClick={() => changeView(item.id)}
+              aria-current={activeView === item.id ? "page" : undefined}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                activeView === item.id
+                  ? "bg-[var(--accent-soft)] text-[var(--accent)]"
+                  : "text-[var(--muted-foreground)] hover:bg-[var(--surface)] hover:text-[var(--foreground)]",
+              )}
             >
               <item.icon size={17} />
               {item.label}
@@ -732,28 +897,16 @@ export function Dashboard() {
           ))}
         </nav>
         <div className="mt-auto rounded-2xl bg-[var(--surface)] p-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold">Indice trajectoire</p>
-            <span className="rounded-full bg-[var(--accent-soft)] px-2 py-1 text-[8px] font-bold uppercase tracking-wide text-[var(--accent)]">
-              Expérimental
-            </span>
-          </div>
-          <p className="mt-3 text-3xl font-semibold tracking-[-.06em]">
-            {carbonScore}
-            <span className="text-sm font-normal text-[var(--muted-foreground)]">
-              {" "}
-              / 100
-            </span>
+          <p className="text-xs font-semibold">Votre prochaine étape</p>
+          <p className="mt-2 text-xs leading-5 text-[var(--muted-foreground)]">
+            Choisissez une première action réaliste et mesurez son effet.
           </p>
-          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--border)]">
-            <div
-              className="h-full rounded-full bg-[var(--accent)]"
-              style={{ width: `${carbonScore}%` }}
-            />
-          </div>
-          <p className="mt-2 text-[9px] leading-4 text-[var(--muted-foreground)]">
-            Repère indicatif vers 2 t, pas un classement.
-          </p>
+          <button
+            onClick={() => changeView("act")}
+            className="mt-4 inline-flex min-h-10 items-center gap-2 text-xs font-semibold text-[var(--accent)]"
+          >
+            Voir mes actions <ArrowRight size={13} />
+          </button>
         </div>
         <div className="mt-4 flex items-center justify-between border-t border-[var(--border)] px-2 pt-4">
           <button
@@ -796,11 +949,11 @@ export function Dashboard() {
           <div className="hidden lg:block">
             <p className="text-sm font-semibold">Bilan personnel · 2026</p>
             <p className="text-[11px] text-[var(--muted-foreground)]">
-              Facteurs {result.factorVersion}
+              Calcul local · données privées
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button asChild variant="ghost" size="icon">
+            <Button asChild variant="ghost" size="icon" className="hidden sm:inline-flex">
               <Link href="/compte" aria-label="Compte et synchronisation">
                 <UserRound size={17} />
               </Link>
@@ -808,6 +961,7 @@ export function Dashboard() {
             <Button
               variant="ghost"
               size="icon"
+              className="hidden sm:inline-flex"
               aria-label="Partager mon bilan"
               onClick={shareAssessment}
             >
@@ -824,10 +978,15 @@ export function Dashboard() {
               <button
                 key={item.id}
                 onClick={() => {
-                  navigateTo(item.id);
-                  setMobileNav(false);
+                  changeView(item.id);
                 }}
-                className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-[var(--muted-foreground)] hover:bg-[var(--surface)]"
+                aria-current={activeView === item.id ? "page" : undefined}
+                className={cn(
+                  "flex min-h-11 items-center gap-2 rounded-lg px-3 py-2 text-left text-xs",
+                  activeView === item.id
+                    ? "bg-[var(--accent-soft)] text-[var(--accent)]"
+                    : "text-[var(--muted-foreground)] hover:bg-[var(--surface)]",
+                )}
               >
                 <item.icon size={14} />
                 {item.label}
@@ -853,10 +1012,13 @@ export function Dashboard() {
       </AnimatePresence>
       <main className="lg:ml-[248px]">
         <div className="mx-auto max-w-[1180px] px-5 py-8 lg:px-8 lg:py-12">
-          <section id="overview" className="scroll-mt-24">
+          <section
+            id="overview"
+            className={cn("scroll-mt-24", activeView !== "today" && "hidden")}
+          >
             <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
               <div>
-                <p className="eyebrow">Vue d’ensemble</p>
+                <p className="eyebrow">Aujourd’hui</p>
                 <h1 className="mt-3 text-3xl font-semibold tracking-[-.045em] sm:text-4xl">
                   Bonjour, voici ce qui compte.
                 </h1>
@@ -882,7 +1044,7 @@ export function Dashboard() {
                         Empreinte annuelle estimée
                       </p>
                       <span className="dashboard-live-code">
-                        SIGNAL / {result.confidenceScore}
+                        Fiabilité {confidenceLabel}
                       </span>
                     </div>
                     <p className="number-tabular mt-3 text-[clamp(4.8rem,10vw,7.5rem)] font-semibold leading-none tracking-[-.085em]">
@@ -943,49 +1105,50 @@ export function Dashboard() {
               <div className="panel flex flex-col p-6">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-sm font-semibold">Action prioritaire</p>
+                    <p className="text-sm font-semibold">
+                      Votre priorité cette semaine
+                    </p>
                     <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                      Meilleur potentiel actuel
+                      {plannedActions.length
+                        ? `${plannedActions.length} action${plannedActions.length > 1 ? "s" : ""} dans votre plan`
+                        : "Meilleur potentiel actuel"}
                     </p>
                   </div>
                   <span className="grid size-9 place-items-center rounded-xl bg-[var(--positive-soft)] text-[var(--positive)]">
                     <ArrowDown size={17} />
                   </span>
                 </div>
-                {topAction && (
+                {weeklyPriority && (
                   <>
                     <h2 className="mt-10 text-2xl font-semibold leading-tight tracking-[-.035em]">
-                      {topAction.title}
+                      {weeklyPriority.title}
                     </h2>
                     <p className="mt-3 text-sm leading-6 text-[var(--muted-foreground)]">
-                      {topAction.description}
+                      {weeklyPriority.description}
                     </p>
                     <div className="mt-auto pt-8">
                       <p className="text-3xl font-semibold tracking-[-.05em] text-[var(--positive)]">
-                        −{formatKg(topAction.savingKg)}
+                        Environ {formatKg(weeklyPriority.savingKg)}
                       </p>
                       <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                        CO₂e évités chaque année
+                        potentiellement évités par an
                       </p>
                       <Button
                         variant="secondary"
                         className="mt-5 w-full"
-                        onClick={() => navigateTo("simulator")}
+                        onClick={() => changeView("act")}
                       >
-                        Simuler cette action <ArrowRight size={15} />
+                        {plannedActions.length
+                          ? "Voir mon plan"
+                          : "Choisir une action"}
+                        <ArrowRight size={15} />
                       </Button>
                     </div>
                   </>
                 )}
               </div>
             </div>
-            <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <MetricCard
-                label="Indice trajectoire"
-                value={`${carbonScore} / 100`}
-                note="Repère expérimental, pas un classement"
-                icon={Sparkles}
-              />
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
               <MetricCard
                 label="Fourchette indicative"
                 value={`${formatTons(result.lowKg)}–${formatTons(result.highKg)} t`}
@@ -1008,7 +1171,10 @@ export function Dashboard() {
             </div>
           </section>
 
-          <section id="progress" className="scroll-mt-24 pt-24">
+          <section
+            id="progress"
+            className={cn("scroll-mt-24", activeView !== "progress" && "hidden")}
+          >
             <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
               <div>
                 <p className="eyebrow">Suivre</p>
@@ -1089,13 +1255,23 @@ export function Dashboard() {
                       Tonnes CO₂e par an
                     </p>
                   </div>
-                  <span className="rounded-full bg-[var(--surface)] px-3 py-1.5 text-[10px] font-semibold text-[var(--muted-foreground)]">
-                    {syncStatus === "synced"
-                      ? "Cloud chiffré en transit"
-                      : syncStatus === "error"
-                        ? "Synchronisation à réessayer"
-                        : "Stockage local"}
-                  </span>
+                  {syncStatus === "error" ? (
+                    <button
+                      type="button"
+                      onClick={retrySync}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-[var(--accent-soft)] px-3 py-1.5 text-[10px] font-semibold text-[var(--accent)] transition-opacity hover:opacity-80"
+                    >
+                      <RefreshCw size={11} /> Réessayer la synchronisation
+                    </button>
+                  ) : (
+                    <span className="rounded-full bg-[var(--surface)] px-3 py-1.5 text-[10px] font-semibold text-[var(--muted-foreground)]">
+                      {syncStatus === "synced"
+                        ? "Cloud chiffré en transit"
+                        : syncStatus === "syncing" || syncStatus === "checking"
+                          ? "Synchronisation…"
+                          : "Stockage local"}
+                    </span>
+                  )}
                 </div>
                 <div
                   className="mt-7 h-[260px]"
@@ -1190,7 +1366,10 @@ export function Dashboard() {
             </div>
           </section>
 
-          <section id="emissions" className="scroll-mt-24 pt-24">
+          <section
+            id="emissions"
+            className={cn("scroll-mt-24", activeView !== "understand" && "hidden")}
+          >
             <div className="flex items-end justify-between">
               <div>
                 <p className="eyebrow">Comprendre</p>
@@ -1301,25 +1480,33 @@ export function Dashboard() {
             </div>
           </section>
 
-          <section id="simulator" className="scroll-mt-24 pt-24">
+          <section
+            id="simulator"
+            className={cn("scroll-mt-24", activeView !== "act" && "hidden")}
+          >
             <div>
               <p className="eyebrow">Décider</p>
               <h2 className="mt-3 text-3xl font-semibold tracking-[-.045em]">
-                Et si vous changiez une chose ?
+                Choisissez jusqu’à trois actions.
               </h2>
               <p className="mt-3 max-w-[590px] text-sm leading-6 text-[var(--muted-foreground)]">
-                Activez plusieurs scénarios. Le moteur recalcule immédiatement
-                la différence sans demander à une IA d’inventer un chiffre.
+                Commencez par ce qui vous semble réaliste. Votre estimation se
+                met à jour immédiatement.
               </p>
             </div>
             <div className="mt-7 grid gap-5 xl:grid-cols-[1fr_.72fr]">
               <div className="grid gap-3 md:grid-cols-2">
-                {scenarios.map((s) => (
+                {scenarios.slice(0, 3).map((s) => (
                   <ScenarioCard
                     key={s.id}
                     scenario={s}
                     active={activeScenarios.includes(s.id)}
                     onToggle={() => toggleScenario(s.id)}
+                    inPlan={actionPlan.some(
+                      (item) => item.scenarioId === s.id,
+                    )}
+                    planFull={actionPlan.length >= 3}
+                    onAddToPlan={() => addToPlan(s)}
                   />
                 ))}
               </div>
@@ -1381,60 +1568,132 @@ export function Dashboard() {
             </div>
           </section>
 
-          <section id="actions" className="scroll-mt-24 pt-24">
+          <section
+            id="actions"
+            className={cn(
+              "scroll-mt-24 pt-20",
+              activeView !== "act" && "hidden",
+            )}
+          >
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
               <div>
                 <p className="eyebrow">Réduire</p>
                 <h2 className="mt-3 text-3xl font-semibold tracking-[-.045em]">
-                  Votre plan d’action, par impact.
+                  Donnez-vous un cap simple.
                 </h2>
               </div>
               <Button variant="secondary" onClick={exportPlan}>
                 <Download size={15} /> Exporter le plan
               </Button>
             </div>
-            <div className="mt-7 overflow-hidden rounded-[24px] border border-[var(--border)] bg-[var(--card)]">
-              {scenarios.slice(0, 5).map((s, index) => (
-                <div
-                  key={s.id}
-                  className="grid gap-5 border-b border-[var(--border)] p-5 last:border-0 sm:grid-cols-[40px_1fr_auto] sm:items-center sm:p-6"
-                >
-                  <span className="font-mono text-sm text-[var(--muted-foreground)]">
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-sm font-semibold sm:text-base">
-                        {s.title}
-                      </h3>
-                      {index === 0 && (
-                        <span className="rounded-full bg-[var(--positive-soft)] px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-[var(--positive)]">
-                          Priorité
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">
-                      {s.description}
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-4 text-[10px] text-[var(--muted-foreground)]">
-                      <span>Effort · {s.effort}</span>
-                      <span>Coût · {s.cost}</span>
-                      <span>
-                        Carbon ROI ·{" "}
-                        {s.cost === "Économie" ? "Très élevé" : "À arbitrer"}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="text-left sm:text-right">
-                    <p className="text-lg font-semibold text-[var(--positive)]">
-                      −{formatKg(s.savingKg)}
-                    </p>
-                    <p className="text-[10px] text-[var(--muted-foreground)]">
-                      par an
-                    </p>
-                  </div>
+            <div className="mt-7 panel p-6 sm:p-8">
+              <div className="flex flex-col justify-between gap-4 border-b border-[var(--border)] pb-7 sm:flex-row sm:items-end">
+                <div>
+                  <p className="text-sm font-semibold">Mon plan personnel</p>
+                  <p className="mt-2 max-w-[600px] text-sm leading-6 text-[var(--muted-foreground)]">
+                    Trois actions maximum pour rester concentré. Leur état et
+                    leur date restent privés, puis se synchronisent avec votre
+                    compte si vous l’activez.
+                  </p>
                 </div>
-              ))}
+                <span className="shrink-0 rounded-full bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold">
+                  {actionPlan.length} / 3 actions
+                </span>
+              </div>
+              {plannedActions.length ? (
+                <div className="divide-y divide-[var(--border)]">
+                  {plannedActions.map(({ item, scenario }) => (
+                    <article
+                      key={scenario.id}
+                      className="grid gap-5 py-7 lg:grid-cols-[1fr_230px]"
+                    >
+                      <div>
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <h3 className="text-lg font-semibold tracking-[-.025em]">
+                            {scenario.title}
+                          </h3>
+                          <span className="text-sm font-semibold text-[var(--positive)]">
+                            −{formatKg(scenario.savingKg)} / an
+                          </span>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2 text-[10px]">
+                          <span className="rounded-full bg-[var(--surface)] px-2.5 py-1">
+                            Effort {scenario.effort.toLowerCase()}
+                          </span>
+                          <span className="rounded-full bg-[var(--surface)] px-2.5 py-1">
+                            Budget · {scenario.cost.toLowerCase()}
+                          </span>
+                        </div>
+                        <details className="group mt-5 text-sm">
+                          <summary className="cursor-pointer list-none font-semibold text-[var(--accent)]">
+                            Pourquoi cette action pour vous ?
+                          </summary>
+                          <p className="mt-2 max-w-[700px] leading-6 text-[var(--muted-foreground)]">
+                            {scenario.rationale}
+                          </p>
+                        </details>
+                      </div>
+                      <div className="space-y-3">
+                        <label className="block text-xs font-medium text-[var(--muted-foreground)]">
+                          État
+                          <select
+                            value={item.status}
+                            onChange={(event) => {
+                              const status = event.target
+                                .value as ActionPlanStatus;
+                              updatePlanItem(scenario.id, {
+                                status,
+                                startedAt:
+                                  status === "in_progress"
+                                    ? item.startedAt ??
+                                      new Date().toISOString().slice(0, 10)
+                                    : item.startedAt,
+                              });
+                            }}
+                            className="mt-1.5 h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 text-sm font-semibold outline-none focus:border-[var(--accent)]"
+                          >
+                            <option value="to_try">À essayer</option>
+                            <option value="in_progress">En cours</option>
+                            <option value="completed">Réalisée</option>
+                          </select>
+                        </label>
+                        <label className="block text-xs font-medium text-[var(--muted-foreground)]">
+                          <span className="inline-flex items-center gap-1.5">
+                            <CalendarDays size={12} /> Date de début facultative
+                          </span>
+                          <input
+                            type="date"
+                            value={item.startedAt ?? ""}
+                            onChange={(event) =>
+                              updatePlanItem(scenario.id, {
+                                startedAt: event.target.value || null,
+                              })
+                            }
+                            className="mt-1.5 h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 text-sm outline-none focus:border-[var(--accent)]"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => removeFromPlan(scenario.id)}
+                          className="text-xs font-semibold text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                        >
+                          Retirer du plan
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-10 text-center">
+                  <p className="text-sm font-semibold">
+                    Votre plan est encore vide.
+                  </p>
+                  <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                    Ajoutez une première action depuis les recommandations
+                    ci-dessus.
+                  </p>
+                </div>
+              )}
             </div>
             <div className="mt-5 panel p-6 sm:p-8">
               <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
@@ -1533,7 +1792,13 @@ export function Dashboard() {
             </div>
           </section>
 
-          <section id="methodology" className="scroll-mt-24 pb-24 pt-24">
+          <section
+            id="methodology"
+            className={cn(
+              "scroll-mt-24 pb-24 pt-20",
+              activeView !== "understand" && "hidden",
+            )}
+          >
             <div>
               <p className="eyebrow">Transparence</p>
               <h2 className="mt-3 text-3xl font-semibold tracking-[-.045em]">
@@ -1548,17 +1813,14 @@ export function Dashboard() {
             <div className="mt-7 grid gap-5 lg:grid-cols-[.72fr_1.28fr]">
               <div className="panel p-6">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold">Qualité des données</p>
-                  <span className="rounded-full bg-[var(--accent-soft)] px-2 py-1 text-[8px] font-bold uppercase tracking-wide text-[var(--accent)]">
-                    Expérimental
+                  <p className="text-sm font-semibold">Fiabilité du résultat</p>
+                  <span className="rounded-full bg-[var(--accent-soft)] px-2 py-1 text-[9px] font-bold text-[var(--accent)]">
+                    {confidenceLabel}
                   </span>
                 </div>
                 <div className="mt-6 flex items-end gap-3">
-                  <p className="text-5xl font-semibold tracking-[-.07em]">
-                    {result.confidenceScore}%
-                  </p>
-                  <p className="pb-1 text-xs text-[var(--muted-foreground)]">
-                    niveau indicatif
+                  <p className="text-4xl font-semibold capitalize tracking-[-.06em]">
+                    {confidenceLabel}
                   </p>
                 </div>
                 <div className="mt-5 h-2 overflow-hidden rounded-full bg-[var(--surface)]">
@@ -1568,8 +1830,9 @@ export function Dashboard() {
                   />
                 </div>
                 <p className="mt-3 text-[10px] leading-4 text-[var(--muted-foreground)]">
-                  Ce niveau mesure la part de données réelles renseignées. Ce
-                  n’est pas une probabilité statistique.
+                  Cette indication dépend de la part de données réelles que vous
+                  avez renseignées. Le pourcentage technique reste disponible
+                  dans l’export de vos données.
                 </p>
                 <ul className="mt-6 space-y-3 text-xs text-[var(--muted-foreground)]">
                   <li className="flex gap-2">
@@ -1593,7 +1856,7 @@ export function Dashboard() {
               </div>
               <div className="panel overflow-hidden">
                 <div className="border-b border-[var(--border)] p-6">
-                  <p className="text-sm font-semibold">Registre des facteurs</p>
+                  <p className="text-sm font-semibold">Sources du calcul</p>
                   <p className="mt-1 text-xs text-[var(--muted-foreground)]">
                     {emissionFactors.length} facteurs · version{" "}
                     {result.factorVersion}

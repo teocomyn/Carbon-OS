@@ -90,6 +90,17 @@ export interface Scenario {
   effort: "Faible" | "Modéré" | "Élevé";
   cost: "Économie" | "Neutre" | "Investissement";
   icon: string;
+  rationale: string;
+}
+
+export type ActionPlanStatus = "to_try" | "in_progress" | "completed";
+
+export interface ActionPlanItem {
+  scenarioId: string;
+  status: ActionPlanStatus;
+  startedAt: string | null;
+  addedAt: string;
+  updatedAt: string;
 }
 
 export type AssessmentSource = "questionnaire" | "manual" | "imported";

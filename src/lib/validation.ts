@@ -54,7 +54,16 @@ export const syncSnapshotSchema = z.object({
   goalKg: z.number().int().min(500).max(100_000),
 });
 
+export const actionPlanItemSchema = z.object({
+  scenarioId: z.string().min(1).max(64),
+  status: z.enum(["to_try", "in_progress", "completed"]),
+  startedAt: z.iso.date().nullable(),
+  addedAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+});
+
 export const syncRequestSchema = z.object({
   history: z.array(syncSnapshotSchema).max(50),
   goalKg: z.number().int().min(500).max(100_000),
+  actionPlan: z.array(actionPlanItemSchema).max(3),
 });

@@ -28,6 +28,8 @@ export const defaultAnswers: AssessmentAnswers = {
 };
 
 export const STORAGE_KEY = "carbon-os-assessment-v1";
+export const QUESTIONNAIRE_DRAFT_KEY = "carbon-os-questionnaire-draft-v1";
 export const GOAL_STORAGE_KEY = "carbon-os-goal-v1";
 export const HISTORY_STORAGE_KEY = "carbon-os-history-v1";
+export const ACTION_PLAN_STORAGE_KEY = "carbon-os-action-plan-v1";
 export const MAX_HISTORY_ENTRIES = 50;

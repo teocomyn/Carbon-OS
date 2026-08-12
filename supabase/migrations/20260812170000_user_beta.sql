@@ -29,36 +29,44 @@ alter table public.user_preferences enable row level security;
 
 create policy "Users read their assessments"
   on public.assessments for select
+  to authenticated
   using ((select auth.uid()) = user_id);
 
 create policy "Users insert their assessments"
   on public.assessments for insert
+  to authenticated
   with check ((select auth.uid()) = user_id);
 
 create policy "Users update their assessments"
   on public.assessments for update
+  to authenticated
   using ((select auth.uid()) = user_id)
   with check ((select auth.uid()) = user_id);
 
 create policy "Users delete their assessments"
   on public.assessments for delete
+  to authenticated
   using ((select auth.uid()) = user_id);
 
 create policy "Users read their preferences"
   on public.user_preferences for select
+  to authenticated
   using ((select auth.uid()) = user_id);
 
 create policy "Users insert their preferences"
   on public.user_preferences for insert
+  to authenticated
   with check ((select auth.uid()) = user_id);
 
 create policy "Users update their preferences"
   on public.user_preferences for update
+  to authenticated
   using ((select auth.uid()) = user_id)
   with check ((select auth.uid()) = user_id);
 
 create policy "Users delete their preferences"
   on public.user_preferences for delete
+  to authenticated
   using ((select auth.uid()) = user_id);
 
 revoke all on table public.assessments from anon;

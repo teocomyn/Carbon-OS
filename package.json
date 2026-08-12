@@ -11,10 +11,12 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@marsidev/react-turnstile": "^1.6.0",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-slot": "^1.2.3",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.3",
+    "@vercel/analytics": "^1.6.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.539.0",
@@ -36,6 +38,6 @@
     "eslint-config-next": "16.3.0",
     "tailwindcss": "^4.1.14",
     "typescript": "^5.9.2",
-    "vitest": "^3.2.4"
+    "vitest": "^4.1.10"
   }
 }

@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Activity,
   ArrowRight,
@@ -29,10 +29,26 @@ import {
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { defaultAnswers, GOAL_STORAGE_KEY, STORAGE_KEY } from "@/data/defaults";
+import {
+  defaultAnswers,
+  GOAL_STORAGE_KEY,
+  QUESTIONNAIRE_DRAFT_KEY,
+  STORAGE_KEY,
+} from "@/data/defaults";
 import { calculateAssessment } from "@/lib/calculator";
-import { addLocalSnapshot, createAssessmentSnapshot } from "@/lib/history";
+import {
+  addLocalSnapshot,
+  createAssessmentSnapshot,
+  readLocalHistory,
+} from "@/lib/history";
+import {
+  roundedDurationSeconds,
+  secondAssessmentDelay,
+  trackCarbonEvent,
+  type QuestionnaireChapter,
+} from "@/lib/analytics";
 import { CARBON_SIGNAL_VIDEO } from "@/lib/media";
+import { parseQuestionnaireDraft } from "@/lib/questionnaire-draft";
 import type { AssessmentAnswers } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -116,6 +132,13 @@ const steps = [
       "Ils comptent, mais leur poids restera proportionné aux autres postes.",
     minutes: 1,
   },
+] as const;
+
+const chapters = [
+  { label: "Profil", from: 0, to: 0 },
+  { label: "Déplacements", from: 1, to: 4 },
+  { label: "Logement", from: 5, to: 6 },
+  { label: "Quotidien", from: 7, to: 10 },
 ] as const;
 
 function OptionCard<T extends string | number>({
@@ -239,10 +262,12 @@ function Segment<T extends string | number>({
   value,
   options,
   onChange,
+  active = true,
 }: {
   value: T;
   options: { value: T; label: string }[];
   onChange: (value: T) => void;
+  active?: boolean;
 }) {
   return (
     <div
@@ -258,7 +283,7 @@ function Segment<T extends string | number>({
           onClick={() => onChange(item.value)}
           className={cn(
             "min-h-10 rounded-[9px] px-2 text-xs font-semibold transition-all",
-            value === item.value
+            active && value === item.value
               ? "bg-[var(--card)] text-[var(--foreground)] shadow-sm"
               : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]",
           )}
@@ -272,24 +297,114 @@ function Segment<T extends string | number>({
 
 export function Questionnaire() {
   const router = useRouter();
+  const startedAt = useRef<number | null>(null);
+  const completed = useRef(false);
+  const abandonmentTracked = useRef(false);
+  const indexRef = useRef(0);
   const [index, setIndex] = useState(0);
   const [direction, setDirection] = useState(1);
   const [answers, setAnswers] = useState<Answers>(defaultAnswers);
+  const [touchedSteps, setTouchedSteps] = useState<number[]>([]);
+  const [estimatedSteps, setEstimatedSteps] = useState<number[]>([]);
+  const [draftReady, setDraftReady] = useState(false);
+  const [resumed, setResumed] = useState(false);
   const [saving, setSaving] = useState(false);
   const step = steps[index];
   const progress = ((index + 1) / steps.length) * 100;
-  const update = <K extends keyof Answers>(key: K, value: Answers[K]) =>
+  const chapterIndex = chapters.findIndex(
+    (chapter) => index >= chapter.from && index <= chapter.to,
+  );
+  const chapter = chapters[Math.max(chapterIndex, 0)];
+  const stepWasAnswered = touchedSteps.includes(index);
+  const update = <K extends keyof Answers>(key: K, value: Answers[K]) => {
     setAnswers((current) => ({ ...current, [key]: value }));
+    setTouchedSteps((current) =>
+      current.includes(index) ? current : [...current, index],
+    );
+    setEstimatedSteps((current) => current.filter((stepIndex) => stepIndex !== index));
+  };
+  useEffect(() => {
+    startedAt.current = Date.now();
+    trackCarbonEvent({ name: "Questionnaire démarré" });
+    const trackAbandonment = () => {
+      if (completed.current || abandonmentTracked.current) return;
+      abandonmentTracked.current = true;
+      const currentChapter = chapters.find(
+        (item) =>
+          indexRef.current >= item.from && indexRef.current <= item.to,
+      );
+      const chapterName: QuestionnaireChapter =
+        currentChapter?.label === "Profil"
+          ? "profil"
+          : currentChapter?.label === "Déplacements"
+            ? "deplacements"
+            : currentChapter?.label === "Logement"
+              ? "logement"
+              : "quotidien";
+      trackCarbonEvent({
+        name: "Questionnaire abandonné",
+        data: { chapitre: chapterName },
+      });
+    };
+    window.addEventListener("pagehide", trackAbandonment);
+    return () => window.removeEventListener("pagehide", trackAbandonment);
+  }, []);
+  useEffect(() => {
+    indexRef.current = index;
+  }, [index]);
+  useEffect(() => {
+    const restoreTimer = window.setTimeout(() => {
+      const draft = parseQuestionnaireDraft(
+        localStorage.getItem(QUESTIONNAIRE_DRAFT_KEY),
+        steps.length,
+      );
+      if (draft) {
+        setAnswers(draft.answers);
+        setIndex(draft.index);
+        setTouchedSteps(draft.touchedSteps);
+        setEstimatedSteps(draft.estimatedSteps);
+        setResumed(draft.index > 0 || draft.touchedSteps.length > 0);
+      }
+      setDraftReady(true);
+    }, 0);
+    return () => window.clearTimeout(restoreTimer);
+  }, []);
+  useEffect(() => {
+    if (!draftReady || saving) return;
+    localStorage.setItem(
+      QUESTIONNAIRE_DRAFT_KEY,
+      JSON.stringify({
+        answers,
+        index,
+        touchedSteps,
+        estimatedSteps,
+        updatedAt: new Date().toISOString(),
+      }),
+    );
+  }, [answers, draftReady, estimatedSteps, index, saving, touchedSteps]);
+  useEffect(() => {
+    if (!resumed) return;
+    const resumedTimer = window.setTimeout(() => setResumed(false), 4_000);
+    return () => window.clearTimeout(resumedTimer);
+  }, [resumed]);
   const next = () => {
+    if (!stepWasAnswered) {
+      setEstimatedSteps((current) =>
+        current.includes(index) ? current : [...current, index],
+      );
+    }
     if (index < steps.length - 1) {
       setDirection(1);
       setIndex(index + 1);
       window.scrollTo(0, 0);
     } else {
       setSaving(true);
+      completed.current = true;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(answers));
+      localStorage.removeItem(QUESTIONNAIRE_DRAFT_KEY);
       const result = calculateAssessment(answers);
       const storedGoal = Number(localStorage.getItem(GOAL_STORAGE_KEY));
+      const previousHistory = readLocalHistory();
       addLocalSnapshot(
         createAssessmentSnapshot({
           answers,
@@ -298,14 +413,39 @@ export function Questionnaire() {
           source: "questionnaire",
         }),
       );
-      setTimeout(() => router.push("/dashboard"), 650);
+      trackCarbonEvent({
+        name: "Questionnaire terminé",
+        data: {
+          mode: answers.mode === "quick" ? "rapide" : "précis",
+          dureeSecondes: roundedDurationSeconds(
+            startedAt.current ?? Date.now(),
+          ),
+        },
+      });
+      if (previousHistory.length === 1)
+        trackCarbonEvent({
+          name: "Second bilan réalisé",
+          data: {
+            delai: secondAssessmentDelay(previousHistory[0]!.createdAt),
+          },
+        });
+      setTimeout(() => router.push("/resultat"), 450);
     }
   };
   const back = () => {
     if (index > 0) {
       setDirection(-1);
       setIndex(index - 1);
-    } else router.push("/");
+    } else {
+      if (!abandonmentTracked.current) {
+        abandonmentTracked.current = true;
+        trackCarbonEvent({
+          name: "Questionnaire abandonné",
+          data: { chapitre: "profil" },
+        });
+      }
+      router.push("/");
+    }
   };
 
   const content = () => {
@@ -314,24 +454,22 @@ export function Questionnaire() {
         return (
           <div className="grid gap-4 sm:grid-cols-2">
             <OptionCard
-              selected={answers.mode === "quick"}
+              selected={stepWasAnswered && answers.mode === "quick"}
               onSelect={(v) => update("mode", v)}
               choice={{
                 value: "quick",
                 label: "Mode rapide",
-                description:
-                  "Des estimations fiables pour aller à l’essentiel.",
+                description: "Environ 4 min · nous estimons les détails.",
                 icon: Zap,
               }}
             />
             <OptionCard
-              selected={answers.mode === "precise"}
+              selected={stepWasAnswered && answers.mode === "precise"}
               onSelect={(v) => update("mode", v)}
               choice={{
                 value: "precise",
                 label: "Mode précis",
-                description:
-                  "Ajoutez vos consommations réelles quand vous les connaissez.",
+                description: "Environ 8 min · ajoutez vos données réelles.",
                 icon: Gauge,
               }}
             />
@@ -363,7 +501,7 @@ export function Questionnaire() {
               <OptionCard
                 compact
                 key={value}
-                selected={answers.primaryMobility === value}
+                selected={stepWasAnswered && answers.primaryMobility === value}
                 onSelect={(v) => {
                   update("primaryMobility", v);
                   if (v !== "car") update("carType", "none");
@@ -403,7 +541,7 @@ export function Questionnaire() {
               <OptionCard
                 compact
                 key={value}
-                selected={answers.carType === value}
+                selected={stepWasAnswered && answers.carType === value}
                 onSelect={(v) => update("carType", v)}
                 choice={{ value, label, description, icon }}
               />
@@ -473,7 +611,7 @@ export function Questionnaire() {
             <div className="grid gap-3 sm:grid-cols-2">
               <OptionCard
                 compact
-                selected={answers.homeType === "apartment"}
+                selected={stepWasAnswered && answers.homeType === "apartment"}
                 onSelect={(v) => update("homeType", v)}
                 choice={{
                   value: "apartment",
@@ -483,7 +621,7 @@ export function Questionnaire() {
               />
               <OptionCard
                 compact
-                selected={answers.homeType === "house"}
+                selected={stepWasAnswered && answers.homeType === "house"}
                 onSelect={(v) => update("homeType", v)}
                 choice={{ value: "house", label: "Maison", icon: Home }}
               />
@@ -508,6 +646,7 @@ export function Questionnaire() {
             <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
               <p className="mb-4 text-sm font-semibold">Isolation estimée</p>
               <Segment
+                active={stepWasAnswered}
                 value={answers.insulation}
                 onChange={(v) => update("insulation", v)}
                 options={[
@@ -536,7 +675,7 @@ export function Questionnaire() {
                 <OptionCard
                   compact
                   key={value}
-                  selected={answers.heating === value}
+                  selected={stepWasAnswered && answers.heating === value}
                   onSelect={(v) => update("heating", v)}
                   choice={{ value, label, icon }}
                 />
@@ -635,7 +774,7 @@ export function Questionnaire() {
               <OptionCard
                 compact
                 key={value}
-                selected={answers.diet === value}
+                selected={stepWasAnswered && answers.diet === value}
                 onSelect={(v) => update("diet", v)}
                 choice={{ value, label, description, icon }}
               />
@@ -657,7 +796,7 @@ export function Questionnaire() {
               <OptionCard
                 compact
                 key={value}
-                selected={answers.beefFrequency === value}
+                selected={stepWasAnswered && answers.beefFrequency === value}
                 onSelect={(v) => update("beefFrequency", v)}
                 choice={{ value, label, icon: value === 0 ? Leaf : Utensils }}
               />
@@ -678,7 +817,7 @@ export function Questionnaire() {
                 <OptionCard
                   compact
                   key={value}
-                  selected={answers.purchaseProfile === value}
+                  selected={stepWasAnswered && answers.purchaseProfile === value}
                   onSelect={(v) => update("purchaseProfile", v)}
                   choice={{ value, label, description, icon: ShoppingBag }}
                 />
@@ -687,6 +826,7 @@ export function Questionnaire() {
             <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
               <p className="mb-4 text-sm font-semibold">Part de seconde main</p>
               <Segment
+                active={stepWasAnswered}
                 value={answers.secondHand}
                 onChange={(v) => update("secondHand", v)}
                 options={[
@@ -701,6 +841,7 @@ export function Questionnaire() {
                 Durée de vie du smartphone
               </p>
               <Segment
+                active={stepWasAnswered}
                 value={answers.deviceYears}
                 onChange={(v) => update("deviceYears", v)}
                 options={[
@@ -730,6 +871,7 @@ export function Questionnaire() {
                 Services, loisirs, banque & assurance
               </p>
               <Segment
+                active={stepWasAnswered}
                 value={answers.servicesProfile}
                 onChange={(v) => update("servicesProfile", v)}
                 options={[
@@ -772,9 +914,9 @@ export function Questionnaire() {
           <div className="flex items-center gap-2">
             <div className="questionnaire-status-pill hidden items-center gap-2 text-xs text-[var(--muted-foreground)] sm:flex">
               <Signal size={13} />
-              Session locale
+              Sauvegarde locale
               <span />
-              <Clock3 size={13} /> {step.minutes} min
+              <Clock3 size={13} /> {answers.mode === "precise" ? "≈ 8 min" : "≈ 4 min"}
             </div>
             <ThemeToggle />
           </div>
@@ -791,18 +933,20 @@ export function Questionnaire() {
         <aside className="questionnaire-rail" aria-label="Contexte de l’étape">
           <div>
             <p className="questionnaire-system-label">
-              <Activity size={13} /> CARBON / INPUT
+              <Activity size={13} /> Votre bilan
             </p>
             <p className="questionnaire-rail-number">
-              {String(index + 1).padStart(2, "0")}
+              {String(chapterIndex + 1).padStart(2, "0")}
             </p>
-            <p className="questionnaire-rail-category">{step.category}</p>
+            <p className="questionnaire-rail-category">{chapter.label}</p>
           </div>
           <div className="questionnaire-step-map" aria-hidden="true">
-            {steps.map((_, stepIndex) => (
+            {chapters.map((_, currentChapterIndex) => (
               <span
-                key={stepIndex}
-                className={stepIndex <= index ? "is-complete" : undefined}
+                key={currentChapterIndex}
+                className={
+                  currentChapterIndex <= chapterIndex ? "is-complete" : undefined
+                }
               />
             ))}
           </div>
@@ -815,8 +959,7 @@ export function Questionnaire() {
           <div className="mb-10 flex items-center justify-between">
             <div>
               <p className="eyebrow">
-                {String(index + 1).padStart(2, "0")} / {steps.length} —{" "}
-                {step.category}
+                {chapterIndex + 1} sur {chapters.length} — {chapter.label}
               </p>
             </div>
             <p className="number-tabular text-xs text-[var(--muted-foreground)]">
@@ -838,6 +981,11 @@ export function Questionnaire() {
               <p className="mt-4 max-w-[620px] text-sm leading-6 text-[var(--muted-foreground)] sm:text-base">
                 {step.subtitle}
               </p>
+              {resumed && (
+                <p className="mt-4 inline-flex items-center gap-2 rounded-full bg-[var(--positive-soft)] px-3 py-1.5 text-xs font-medium text-[var(--positive)]">
+                  <Check size={13} /> Votre progression a été reprise automatiquement
+                </p>
+              )}
               <div className="questionnaire-content mt-9 sm:mt-11">
                 {content()}
               </div>
@@ -857,13 +1005,13 @@ export function Questionnaire() {
               {index === 0 ? "Quitter" : "Retour"}
             </Button>
             <div className="flex items-center gap-2">
-              {index > 1 && index < 10 && (
+              {!stepWasAnswered && index > 0 && (
                 <Button
                   variant="ghost"
                   className="hidden text-xs sm:inline-flex"
                   onClick={next}
                 >
-                  Je ne sais pas
+                  Estimer pour moi
                 </Button>
               )}
               <Button
@@ -876,7 +1024,11 @@ export function Questionnaire() {
                   ? "Calcul en cours…"
                   : index === steps.length - 1
                     ? "Voir mon résultat"
-                    : "Continuer"}
+                    : stepWasAnswered
+                      ? "Continuer"
+                      : index === 0
+                        ? "Utiliser le mode rapide"
+                        : "Estimer et continuer"}
                 {!saving && <ArrowRight size={17} />}
               </Button>
             </div>
@@ -884,7 +1036,7 @@ export function Questionnaire() {
         </footer>
       </div>
       <span className="sr-only" aria-live="polite">
-        Étape {index + 1} sur {steps.length}, {step.category}
+        Étape {index + 1} sur {steps.length}, {chapter.label}
       </span>
     </main>
   );

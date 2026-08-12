@@ -11,6 +11,8 @@ import {
   X,
 } from "lucide-react";
 import { CARBON_SIGNAL_VIDEO } from "@/lib/media";
+import { trackCarbonEvent } from "@/lib/analytics";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 const navItems = [
   { label: "Accueil", href: "/", active: true },
@@ -28,20 +30,20 @@ const stats = [
     label: "Premier bilan",
   },
   {
-    symbol: "#",
-    target: 27,
-    suffix: "",
+    symbol: "○",
+    target: 0,
+    suffix: " compte",
     decimals: 0,
-    label: "Facteurs sourcés",
+    label: "Pour commencer",
   },
-  { symbol: "◎", target: 5, suffix: "", decimals: 0, label: "Catégories clés" },
   {
-    symbol: "%",
+    symbol: "◎",
     target: 100,
     suffix: "%",
     decimals: 0,
-    label: "Calcul inspectable",
+    label: "Local par défaut",
   },
+  { symbol: "#", target: 27, suffix: "", decimals: 0, label: "Sources publiques" },
 ];
 
 function CarbonMark() {
@@ -101,6 +103,11 @@ function CountUp({
 
 export function LandingPage() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const accountLabel = isSupabaseConfigured() ? "Mon compte" : "Synchronisation";
+
+  useEffect(() => {
+    trackCarbonEvent({ name: "Accueil consulté" });
+  }, []);
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -152,7 +159,7 @@ export function LandingPage() {
           </nav>
 
           <Link href="/compte" className="landing-account">
-            Mon compte
+            {accountLabel}
           </Link>
 
           <button
@@ -199,7 +206,7 @@ export function LandingPage() {
                 className="landing-menu-account"
                 onClick={() => setMenuOpen(false)}
               >
-                Mon compte <ArrowUpRight size={16} />
+                {accountLabel} <ArrowUpRight size={16} />
               </Link>
             </nav>
           </div>
@@ -240,6 +247,7 @@ export function LandingPage() {
 
           <Link
             href="/questionnaire"
+            onClick={() => trackCarbonEvent({ name: "CTA bilan cliqué" })}
             className="landing-cta landing-anim"
             style={{ "--delay": ".4s" } as React.CSSProperties}
           >

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
+import { PrivacyAnalytics } from "@/components/privacy-analytics";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 import "./globals.css";
 
@@ -50,6 +51,7 @@ export default function RootLayout({
     <html lang="fr" suppressHydrationWarning data-scroll-behavior="smooth">
       <body className={`${geist.variable} ${geistMono.variable}`}>
         <ThemeProvider>{children}</ThemeProvider>
+        <PrivacyAnalytics />
       </body>
     </html>
   );

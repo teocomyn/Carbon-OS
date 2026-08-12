@@ -12,7 +12,12 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function AccountPage() {
+export default async function AccountPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ connexion?: string | string[] }>;
+}) {
+  const connexion = (await searchParams).connexion;
   const configured = isSupabaseConfigured();
   const supabase = await createSupabaseServerClient();
   const {
@@ -65,14 +70,24 @@ export default async function AccountPage() {
           </div>
         </section>
         <div className="account-vault-panel">
-          <AccountPanel configured={configured} email={user?.email ?? null} />
+          <AccountPanel
+            configured={configured}
+            email={user?.email ?? null}
+            initialMessage={
+              connexion === "ok"
+                ? "Connexion réussie. Votre historique peut maintenant être synchronisé."
+                : connexion === "erreur"
+                  ? "Le lien est invalide ou a expiré. Demandez-en un nouveau."
+                  : ""
+            }
+          />
         </div>
       </div>
       <ContentSection title="Ce qui est synchronisé">
         <p>
           Vos réponses au questionnaire, les résultats calculés, la date de
-          chaque bilan et votre objectif personnel. Aucun profil public,
-          classement ou revente de données n’est prévu.
+          chaque bilan, votre objectif et votre plan de trois actions. Aucun
+          profil public, classement ou revente de données n’est prévu.
         </p>
       </ContentSection>
       <ContentSection title="Sécurité par défaut">

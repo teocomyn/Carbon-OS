@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { calculateAssessment } from "@/lib/calculator";
-import type { AssessmentSnapshot } from "@/lib/types";
+import type { ActionPlanItem, AssessmentSnapshot } from "@/lib/types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { syncRequestSchema } from "@/lib/validation";
 
@@ -32,7 +32,10 @@ async function readCloudState(
   supabase: NonNullable<Awaited<ReturnType<typeof createSupabaseServerClient>>>,
   userId: string,
 ) {
-  const [{ data: rows, error }, { data: preferences }] = await Promise.all([
+  const [
+    { data: rows, error },
+    { data: preferences, error: preferenceReadError },
+  ] = await Promise.all([
     supabase
       .from("assessments")
       .select("id, created_at, source, answers, result, goal_kg")
@@ -41,11 +44,11 @@ async function readCloudState(
       .limit(50),
     supabase
       .from("user_preferences")
-      .select("goal_kg")
+      .select("goal_kg, action_plan")
       .eq("user_id", userId)
       .maybeSingle(),
   ]);
-  if (error) throw error;
+  if (error || preferenceReadError) throw error ?? preferenceReadError;
   const history = (rows ?? []).map(
     (row) =>
       ({
@@ -57,7 +60,11 @@ async function readCloudState(
         goalKg: row.goal_kg,
       }) as AssessmentSnapshot,
   );
-  return { history, goalKg: preferences?.goal_kg ?? null };
+  return {
+    history,
+    goalKg: preferences?.goal_kg ?? null,
+    actionPlan: (preferences?.action_plan ?? []) as ActionPlanItem[],
+  };
 }
 
 export async function GET() {
@@ -125,6 +132,7 @@ export async function POST(request: Request) {
         {
           user_id: auth.user.id,
           goal_kg: parsed.data.goalKg,
+          action_plan: parsed.data.actionPlan,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "user_id" },

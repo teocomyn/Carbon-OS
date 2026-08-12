@@ -28,9 +28,9 @@ export default function PrivacyPage() {
         <p>
           Si vous demandez un lien de connexion, Supabase traite votre adresse
           e-mail pour authentifier votre session. Une fois connecté, Carbon OS
-          synchronise vos réponses, résultats, dates de bilan et objectif. Les
-          règles de sécurité de la base limitent chaque utilisateur à ses
-          propres lignes.
+          synchronise vos réponses, résultats, dates de bilan, objectif et plan
+          d’actions. Les règles de sécurité de la base limitent chaque
+          utilisateur à ses propres lignes.
         </p>
         <p>
           La région d’hébergement de la base et la durée de conservation devront
@@ -56,10 +56,18 @@ export default function PrivacyPage() {
       </ContentSection>
       <ContentSection title="Mesure d’audience">
         <p>
-          Aucun outil d’analyse comportementale transmettant les réponses
-          détaillées du questionnaire n’est intégré à cette bêta. Si une mesure
-          d’audience est ajoutée, elle exclura les réponses carbone et sera
-          documentée ici.
+          Carbon OS utilise Vercel Web Analytics pour mesurer uniquement des
+          étapes générales du parcours, sans cookie publicitaire. Les paramètres
+          des adresses web sont supprimés avant l’envoi. Les événements peuvent
+          indiquer qu’un questionnaire a commencé ou été terminé, son mode, sa
+          durée arrondie, le chapitre d’un abandon, ou qu’une action, un objectif
+          ou un compte a été activé.
+        </p>
+        <p>
+          Les réponses détaillées, le régime alimentaire, les consommations
+          énergétiques, l’adresse e-mail et le montant individuel exact du bilan
+          ne sont jamais ajoutés aux événements de mesure. Les signaux Global
+          Privacy Control et Do Not Track sont respectés par Carbon OS.
         </p>
       </ContentSection>
       <ContentSection title="Vos droits et contact">
