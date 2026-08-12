@@ -133,7 +133,8 @@ function OptionCard<T extends string | number>({
       aria-pressed={selected}
       onClick={() => onSelect(choice.value)}
       className={cn(
-        "group relative flex w-full items-center gap-4 rounded-2xl border bg-[var(--card)] text-left outline-none transition-all duration-200 focus-visible:ring-2 focus-visible:ring-[var(--accent)]",
+        "questionnaire-option group relative flex w-full items-center gap-4 rounded-2xl border bg-[var(--card)] text-left outline-none transition-all duration-200 focus-visible:ring-2 focus-visible:ring-[var(--accent)]",
+        compact && "is-compact",
         compact ? "min-h-16 p-4" : "min-h-24 p-5",
         selected
           ? "border-[var(--accent)] shadow-[0_0_0_3px_var(--accent-soft)]"
@@ -196,7 +197,7 @@ function RangeField({
   hint?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 sm:p-6">
+    <div className="questionnaire-range rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 sm:p-6">
       <div className="flex items-end justify-between gap-4">
         <div>
           <p className="text-sm font-semibold">{label}</p>
@@ -242,7 +243,7 @@ function Segment<T extends string | number>({
 }) {
   return (
     <div
-      className="grid rounded-xl bg-[var(--surface)] p-1"
+      className="questionnaire-segment grid rounded-xl bg-[var(--surface)] p-1"
       style={{
         gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`,
       }}
@@ -755,9 +756,9 @@ export function Questionnaire() {
   };
 
   return (
-    <main className="min-h-screen bg-[var(--background)]">
-      <header className="border-b border-[var(--border)]">
-        <div className="mx-auto flex h-[72px] max-w-[1180px] items-center justify-between px-5 lg:px-8">
+    <main className="process-shell questionnaire-shell min-h-screen bg-[var(--background)]">
+      <header className="questionnaire-header border-b border-[var(--border)]">
+        <div className="questionnaire-header-inner mx-auto flex h-[72px] max-w-[1180px] items-center justify-between px-5 lg:px-8">
           <Logo />
           <div className="flex items-center gap-2">
             <div className="hidden items-center gap-2 text-xs text-[var(--muted-foreground)] sm:flex">
@@ -767,7 +768,7 @@ export function Questionnaire() {
             <ThemeToggle />
           </div>
         </div>
-        <div className="h-0.5 bg-[var(--surface)]">
+        <div className="questionnaire-progress h-0.5 bg-[var(--surface)]">
           <motion.div
             animate={{ width: `${progress}%` }}
             className="h-full bg-[var(--accent)]"
@@ -775,8 +776,8 @@ export function Questionnaire() {
           />
         </div>
       </header>
-      <div className="mx-auto grid min-h-[calc(100vh-75px)] max-w-[1180px] grid-rows-[1fr_auto] px-5 lg:px-8">
-        <div className="mx-auto w-full max-w-[760px] py-10 sm:py-16 lg:py-20">
+      <div className="questionnaire-layout mx-auto grid min-h-[calc(100vh-75px)] max-w-[1180px] grid-rows-[1fr_auto] px-5 lg:px-8">
+        <div className="questionnaire-stage mx-auto w-full max-w-[760px] py-10 sm:py-16 lg:py-20">
           <div className="mb-10 flex items-center justify-between">
             <div>
               <p className="eyebrow">
@@ -797,20 +798,28 @@ export function Questionnaire() {
               exit={{ opacity: 0, x: direction * -20 }}
               transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
             >
-              <h1 className="balance text-3xl font-semibold leading-[1.08] tracking-[-.045em] sm:text-5xl">
+              <h1 className="questionnaire-title balance text-3xl font-semibold leading-[1.08] tracking-[-.045em] sm:text-5xl">
                 {step.title}
               </h1>
               <p className="mt-4 max-w-[620px] text-sm leading-6 text-[var(--muted-foreground)] sm:text-base">
                 {step.subtitle}
               </p>
-              <div className="mt-9 sm:mt-11">{content()}</div>
+              <div className="questionnaire-content mt-9 sm:mt-11">
+                {content()}
+              </div>
             </motion.div>
           </AnimatePresence>
         </div>
-        <footer className="sticky bottom-0 -mx-5 border-t border-[var(--border)] bg-[color:var(--background)/.9] px-5 py-4 backdrop-blur-xl lg:-mx-8 lg:px-8">
+        <footer className="questionnaire-footer sticky bottom-0 -mx-5 border-t border-[var(--border)] bg-[color:var(--background)/.9] px-5 py-4 backdrop-blur-xl lg:-mx-8 lg:px-8">
           <div className="mx-auto flex max-w-[760px] items-center justify-between">
-            <Button variant="ghost" onClick={back}>
-              <ChevronLeft size={17} />
+            <Button
+              className="questionnaire-back"
+              variant="ghost"
+              onClick={back}
+            >
+              <span className="questionnaire-back-mark" aria-hidden="true">
+                {index === 0 ? "N" : <ChevronLeft size={18} />}
+              </span>
               {index === 0 ? "Quitter" : "Retour"}
             </Button>
             <div className="flex items-center gap-2">
@@ -823,7 +832,12 @@ export function Questionnaire() {
                   Je ne sais pas
                 </Button>
               )}
-              <Button variant="accent" onClick={next} disabled={saving}>
+              <Button
+                className="questionnaire-next"
+                variant="accent"
+                onClick={next}
+                disabled={saving}
+              >
                 {saving
                   ? "Calcul en cours…"
                   : index === steps.length - 1

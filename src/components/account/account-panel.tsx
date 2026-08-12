@@ -75,7 +75,7 @@ export function AccountPanel({
 
   if (!configured) {
     return (
-      <section className="panel border-[var(--accent)] p-6 sm:p-8">
+      <section className="account-card panel border-[var(--accent)] p-6 sm:p-8">
         <div className="flex items-start gap-4">
           <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[var(--accent-soft)] text-[var(--accent)]">
             <Cloud size={20} />
@@ -99,7 +99,7 @@ export function AccountPanel({
 
   if (email) {
     return (
-      <section className="panel p-6 sm:p-8">
+      <section className="account-card panel p-6 sm:p-8">
         <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-start">
           <div>
             <span className="inline-flex items-center gap-2 rounded-full bg-[var(--positive-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--positive)]">
@@ -136,7 +136,7 @@ export function AccountPanel({
   }
 
   return (
-    <section className="panel p-6 sm:p-8">
+    <section className="account-card panel p-6 sm:p-8">
       <h2 className="text-2xl font-semibold tracking-[-.035em]">
         Recevoir un lien sécurisé
       </h2>

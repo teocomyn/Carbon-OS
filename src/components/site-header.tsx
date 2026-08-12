@@ -20,7 +20,7 @@ export function SiteHeader() {
             Méthode
           </Link>
           <Link
-            href="#experience"
+            href="/dashboard"
             className="transition-colors hover:text-[var(--foreground)]"
           >
             Produit

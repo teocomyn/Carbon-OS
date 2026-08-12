@@ -19,6 +19,7 @@ export default async function AccountPage() {
 
   return (
     <PublicPage
+      className="process-shell account-shell"
       eyebrow="Compte facultatif"
       title={
         user

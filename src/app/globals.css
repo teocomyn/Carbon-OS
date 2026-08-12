@@ -779,3 +779,464 @@ body.landing-menu-open {
     animation: none !important;
   }
 }
+
+/* Focused product experience — shared by the assessment, dashboard and account. */
+.process-shell {
+  --background: #080a0c;
+  --foreground: #f4f4f2;
+  --card: #111318;
+  --surface: #191c22;
+  --muted: #1c1f25;
+  --muted-foreground: #989da9;
+  --border: #2b3038;
+  --accent: #7d6dff;
+  --accent-soft: rgba(125, 109, 255, 0.2);
+  --positive: #55d9b4;
+  --positive-soft: rgba(85, 217, 180, 0.13);
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  background:
+    radial-gradient(
+      circle at 82% 8%,
+      rgba(125, 109, 255, 0.07),
+      transparent 26rem
+    ),
+    var(--background);
+  color: var(--foreground);
+  color-scheme: dark;
+}
+
+.light .process-shell {
+  --background: #f5f5f2;
+  --foreground: #111216;
+  --card: #ffffff;
+  --surface: #ebebe7;
+  --muted: #e8e8e3;
+  --muted-foreground: #747984;
+  --border: #d8d9d5;
+  --accent: #6d5efc;
+  --accent-soft: rgba(109, 94, 252, 0.14);
+  --positive: #15836d;
+  --positive-soft: #def2ec;
+  color-scheme: light;
+}
+
+.process-shell .panel {
+  border-color: var(--border);
+  border-radius: 25px;
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--card) 96%, white 4%),
+    var(--card)
+  );
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.08);
+}
+
+.process-shell .eyebrow {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  letter-spacing: 0.17em;
+}
+
+.process-shell button,
+.process-shell a {
+  text-underline-offset: 3px;
+}
+
+/* Questionnaire */
+.questionnaire-shell {
+  position: relative;
+}
+
+.questionnaire-shell::before {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.013) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.013) 1px, transparent 1px);
+  background-size: 72px 72px;
+  content: "";
+  pointer-events: none;
+  mask-image: linear-gradient(to bottom, black, transparent 74%);
+}
+
+.questionnaire-header,
+.questionnaire-layout {
+  position: relative;
+  z-index: 1;
+}
+
+.questionnaire-header {
+  background: color-mix(in srgb, var(--background) 91%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+.questionnaire-header-inner {
+  height: 86px;
+}
+
+.questionnaire-header .group > span:first-child {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+}
+
+.questionnaire-header .group > span:last-child {
+  font-size: 17px;
+}
+
+.questionnaire-progress {
+  height: 3px;
+  background: var(--surface);
+}
+
+.questionnaire-progress > div {
+  box-shadow: 0 0 20px rgba(125, 109, 255, 0.7);
+}
+
+.questionnaire-layout {
+  min-height: calc(100dvh - 89px);
+  padding-bottom: 106px;
+}
+
+.questionnaire-stage {
+  max-width: 880px;
+}
+
+.questionnaire-title {
+  max-width: 760px;
+  font-size: clamp(2.25rem, 5.2vw, 4.35rem);
+  line-height: 0.98;
+  letter-spacing: -0.062em;
+}
+
+.questionnaire-content {
+  animation: process-content-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.questionnaire-option {
+  min-height: 118px;
+  border-color: var(--border);
+  border-radius: 26px;
+  background: color-mix(in srgb, var(--card) 96%, transparent);
+  padding: 24px;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.025);
+}
+
+.questionnaire-option.is-compact {
+  min-height: 88px;
+  border-radius: 22px;
+  padding: 18px 20px;
+}
+
+.questionnaire-option[aria-pressed="true"] {
+  border-color: var(--accent);
+  background:
+    radial-gradient(circle at 8% 50%, var(--accent-soft), transparent 36%),
+    var(--card);
+  box-shadow:
+    0 0 0 5px color-mix(in srgb, var(--accent) 22%, transparent),
+    0 18px 55px rgba(0, 0, 0, 0.16);
+}
+
+.questionnaire-option > span:first-of-type {
+  width: 52px;
+  height: 52px;
+  border-radius: 17px;
+}
+
+.questionnaire-option:not(.is-compact) > span:first-of-type {
+  width: 58px;
+  height: 58px;
+}
+
+.questionnaire-option > span:nth-of-type(2) > span:first-child {
+  font-size: 16px;
+}
+
+.questionnaire-option > span:nth-of-type(2) > span:last-child {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.questionnaire-option > span:last-child {
+  width: 24px;
+  height: 24px;
+}
+
+.questionnaire-range {
+  border-radius: 24px;
+  background: var(--card);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.025);
+}
+
+.questionnaire-range input[type="range"] {
+  height: 4px;
+}
+
+.questionnaire-segment {
+  border: 1px solid var(--border);
+  border-radius: 15px;
+}
+
+.questionnaire-footer {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 30;
+  margin-inline: 0 !important;
+  min-height: 92px;
+  display: grid;
+  align-items: center;
+  background: color-mix(in srgb, var(--background) 92%, transparent);
+  box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.12);
+}
+
+.questionnaire-back {
+  gap: 12px;
+  padding-left: 0;
+  font-size: 15px;
+}
+
+.questionnaire-back-mark {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: #030405;
+  color: white;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 20px;
+  font-weight: 400;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.035);
+}
+
+.questionnaire-next {
+  min-width: 164px;
+  height: 54px;
+  padding-inline: 25px;
+  font-size: 15px;
+  box-shadow: 0 14px 44px var(--accent-soft);
+}
+
+/* Dashboard */
+.dashboard-shell > aside {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--card) 96%, transparent),
+    var(--background)
+  );
+  box-shadow: 18px 0 60px rgba(0, 0, 0, 0.06);
+}
+
+.dashboard-shell > aside nav button {
+  min-height: 42px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+}
+
+.dashboard-shell > aside nav button:hover {
+  border-color: var(--border);
+}
+
+.dashboard-shell > header {
+  background: color-mix(in srgb, var(--background) 86%, transparent);
+  backdrop-filter: blur(20px);
+}
+
+.dashboard-shell > main {
+  position: relative;
+}
+
+.dashboard-shell > main::before {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-image: radial-gradient(
+    rgba(255, 255, 255, 0.05) 0.7px,
+    transparent 0.7px
+  );
+  background-size: 18px 18px;
+  opacity: 0.15;
+  content: "";
+  pointer-events: none;
+  mask-image: linear-gradient(to bottom, black, transparent 28rem);
+}
+
+.dashboard-shell > main > div {
+  position: relative;
+  z-index: 1;
+}
+
+.dashboard-shell section > div:first-child h1,
+.dashboard-shell section > div:first-child h2 {
+  max-width: 760px;
+  letter-spacing: -0.055em;
+}
+
+.dashboard-shell #overview .panel:first-of-type {
+  background:
+    radial-gradient(circle at 90% 10%, var(--accent-soft), transparent 44%),
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--card) 96%, white 4%),
+      var(--card)
+    );
+}
+
+.dashboard-shell .panel,
+.dashboard-shell [class*="rounded-[24px]"] {
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.025);
+}
+
+.dashboard-shell [class*="bg-[#111218]"] {
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--border));
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.22);
+}
+
+/* Account */
+.account-shell {
+  background:
+    radial-gradient(
+      circle at 50% 0,
+      rgba(125, 109, 255, 0.12),
+      transparent 32rem
+    ),
+    var(--background);
+}
+
+.account-shell > header {
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--background) 84%, transparent);
+}
+
+.account-shell > article {
+  max-width: 980px;
+}
+
+.account-shell > article > h1 {
+  max-width: 830px;
+  letter-spacing: -0.065em;
+}
+
+.account-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.account-card::after {
+  position: absolute;
+  top: -90px;
+  right: -90px;
+  width: 210px;
+  height: 210px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  filter: blur(36px);
+  content: "";
+  pointer-events: none;
+}
+
+.account-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.account-shell > footer {
+  border-color: var(--border);
+}
+
+@keyframes process-content-in {
+  from {
+    opacity: 0;
+    filter: blur(5px);
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 720px) {
+  .questionnaire-header-inner {
+    height: 74px;
+  }
+  .questionnaire-header .group > span:first-child {
+    width: 32px;
+    height: 32px;
+  }
+  .questionnaire-layout {
+    min-height: calc(100dvh - 77px);
+    padding-bottom: 96px;
+  }
+  .questionnaire-stage {
+    padding-top: 38px;
+    padding-bottom: 38px;
+  }
+  .questionnaire-title {
+    font-size: clamp(2.15rem, 10vw, 3.2rem);
+  }
+  .questionnaire-option,
+  .questionnaire-option.is-compact {
+    min-height: 94px;
+    border-radius: 22px;
+    padding: 18px;
+  }
+  .questionnaire-option:not(.is-compact) > span:first-of-type,
+  .questionnaire-option > span:first-of-type {
+    width: 48px;
+    height: 48px;
+    border-radius: 15px;
+  }
+  .questionnaire-footer {
+    min-height: 82px;
+    padding-top: 12px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+  .questionnaire-back {
+    padding-right: 8px;
+  }
+  .questionnaire-back-mark {
+    width: 38px;
+    height: 38px;
+  }
+  .questionnaire-next {
+    min-width: 142px;
+    height: 50px;
+    padding-inline: 20px;
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 420px) {
+  .questionnaire-title {
+    font-size: 2.15rem;
+  }
+  .questionnaire-option > span:nth-of-type(2) > span:first-child {
+    font-size: 15px;
+  }
+  .questionnaire-option > span:nth-of-type(2) > span:last-child {
+    font-size: 12px;
+  }
+  .questionnaire-footer > div {
+    gap: 8px;
+  }
+  .questionnaire-back {
+    gap: 8px;
+    font-size: 12px;
+  }
+  .questionnaire-back-mark {
+    font-size: 18px;
+  }
+  .questionnaire-next {
+    min-width: 136px;
+  }
+}

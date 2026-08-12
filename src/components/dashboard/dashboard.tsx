@@ -682,7 +682,7 @@ export function Dashboard() {
       </main>
     );
   return (
-    <div className="min-h-screen bg-[var(--background)]">
+    <div className="process-shell dashboard-shell min-h-screen bg-[var(--background)]">
       <AnimatePresence>
         {reveal && (
           <motion.div
@@ -785,7 +785,8 @@ export function Dashboard() {
               variant="ghost"
               size="icon"
               onClick={() => setMobileNav(!mobileNav)}
-              aria-label="Ouvrir le menu"
+              aria-label={mobileNav ? "Fermer le menu" : "Ouvrir le menu"}
+              aria-expanded={mobileNav}
             >
               <Menu size={19} />
             </Button>

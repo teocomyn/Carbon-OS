@@ -7,14 +7,16 @@ export function PublicPage({
   title,
   intro,
   children,
+  className,
 }: {
   eyebrow: string;
   title: string;
   intro: string;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <main>
+    <main className={className}>
       <SiteHeader />
       <article className="mx-auto max-w-[900px] px-5 pb-24 pt-32 sm:pt-40 lg:px-8">
         <Link
