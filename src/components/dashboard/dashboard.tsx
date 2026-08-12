@@ -1384,7 +1384,7 @@ export function Dashboard() {
             </div>
             <div className="mt-7 grid gap-5 xl:grid-cols-[1fr_.72fr]">
               <div className="space-y-3">
-                {result.categories
+                {[...result.categories]
                   .sort((a, b) => b.kgCo2e - a.kgCo2e)
                   .map((category) => (
                     <CategoryBreakdown

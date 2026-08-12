@@ -551,26 +551,50 @@ export function Questionnaire() {
       case 3:
         return (
           <div className="space-y-4">
-            <RangeField
-              label="Distance en voiture"
-              value={answers.carType === "none" ? 0 : answers.carKm}
-              min={0}
-              max={40000}
-              step={500}
-              unit="km/an"
-              onChange={(v) => update("carKm", v)}
-              hint="La moyenne de votre compteur sur un an."
-            />
-            <RangeField
-              label="Nombre moyen de personnes"
-              value={answers.occupancy}
-              min={1}
-              max={4}
-              step={0.1}
-              unit="personne(s)"
-              onChange={(v) => update("occupancy", v)}
-              hint="Vous compris, sur l’ensemble des trajets."
-            />
+            {answers.carType === "none" ? (
+              <div className="flex flex-col gap-5 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+                <div className="flex items-start gap-4">
+                  <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[var(--surface)] text-[var(--muted-foreground)]">
+                    <Car size={20} strokeWidth={1.8} />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold">
+                      Aucune distance en voiture
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">
+                      Vous avez indiqué ne pas avoir de voiture. Ce poste restera
+                      donc à zéro.
+                    </p>
+                  </div>
+                </div>
+                <Button variant="secondary" onClick={back}>
+                  Modifier ma réponse
+                </Button>
+              </div>
+            ) : (
+              <>
+                <RangeField
+                  label="Distance en voiture"
+                  value={answers.carKm}
+                  min={0}
+                  max={40000}
+                  step={500}
+                  unit="km/an"
+                  onChange={(v) => update("carKm", v)}
+                  hint="La moyenne de votre compteur sur un an."
+                />
+                <RangeField
+                  label="Nombre moyen de personnes"
+                  value={answers.occupancy}
+                  min={1}
+                  max={4}
+                  step={0.1}
+                  unit="personne(s)"
+                  onChange={(v) => update("occupancy", v)}
+                  hint="Vous compris, sur l’ensemble des trajets."
+                />
+              </>
+            )}
             <RangeField
               label="Distance en train"
               value={answers.trainKm}
