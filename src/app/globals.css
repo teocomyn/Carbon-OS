@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f7f7f4;
+  --foreground: #121316;
+  --card: #ffffff;
+  --surface: #eeeeea;
+  --muted: #e7e7e2;
+  --muted-foreground: #6f737d;
+  --border: #deded8;
+  --accent: #6d5efc;
+  --accent-soft: rgba(109, 94, 252, 0.2);
+  --positive: #16866f;
+  --positive-soft: #e1f3ee;
+  --orange: #e9824d;
+}
+
+.dark {
+  --background: #0b0c0f;
+  --foreground: #f5f5f2;
+  --card: #121419;
+  --surface: #191c22;
+  --muted: #22252c;
+  --muted-foreground: #969ca8;
+  --border: #292d35;
+  --accent: #8377ff;
+  --accent-soft: rgba(131, 119, 255, 0.22);
+  --positive: #5bd1af;
+  --positive-soft: #12342d;
+  --orange: #ffad7a;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist), Arial, sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+button, a, input { -webkit-tap-highlight-color: transparent; }
+::selection { background: var(--accent-soft); }
+.balance { text-wrap: balance; }
+.panel { background: var(--card); border: 1px solid var(--border); border-radius: 24px; }
+.eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; color: var(--muted-foreground); }
+.hairline { border-color: var(--border); }
+.noise { position: relative; }
+.noise::before { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .028; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.8'/%3E%3C/svg%3E"); }
+.soft-grid { background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px); background-size: 56px 56px; mask-image: linear-gradient(to bottom, black 20%, transparent 85%); opacity: .35; }
+.number-tabular { font-variant-numeric: tabular-nums; }
+input[type="range"] { accent-color: var(--accent); }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+}
