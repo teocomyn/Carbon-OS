@@ -64,6 +64,7 @@ import {
   writeLocalHistory,
 } from "@/lib/history";
 import { buildScenarios } from "@/lib/recommendations";
+import { CARBON_SIGNAL_VIDEO } from "@/lib/media";
 import type {
   AssessmentAnswers,
   AssessmentSnapshot,
@@ -866,13 +867,24 @@ export function Dashboard() {
               </div>
             </div>
             <div className="mt-7 grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
-              <div className="panel relative overflow-hidden p-6 sm:p-8">
+              <div className="dashboard-signal-card panel relative overflow-hidden p-6 sm:p-8">
+                <div className="dashboard-signal-media" aria-hidden="true">
+                  <video autoPlay muted loop playsInline preload="metadata">
+                    <source src={CARBON_SIGNAL_VIDEO} type="video/mp4" />
+                  </video>
+                  <span />
+                </div>
                 <div className="absolute right-0 top-0 size-72 translate-x-1/3 -translate-y-1/3 rounded-full bg-[var(--accent-soft)] blur-3xl" />
                 <div className="relative grid items-center gap-8 sm:grid-cols-[1fr_220px]">
                   <div>
-                    <p className="text-sm text-[var(--muted-foreground)]">
-                      Empreinte annuelle estimée
-                    </p>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <p className="text-sm text-[var(--muted-foreground)]">
+                        Empreinte annuelle estimée
+                      </p>
+                      <span className="dashboard-live-code">
+                        SIGNAL / {result.confidenceScore}
+                      </span>
+                    </div>
                     <p className="number-tabular mt-3 text-[clamp(4.8rem,10vw,7.5rem)] font-semibold leading-none tracking-[-.085em]">
                       {formatTons(result.totalKg)}
                     </p>
@@ -1643,6 +1655,14 @@ export function Dashboard() {
           </section>
         </div>
       </main>
+      <a
+        href="https://www.onlinewebfonts.com/fonts"
+        className="process-font-credit"
+        target="_blank"
+        rel="noreferrer"
+      >
+        Font via OnlineWebFonts
+      </a>
     </div>
   );
 }

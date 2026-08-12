@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
+  Activity,
   ArrowRight,
   Bike,
   Building2,
@@ -17,6 +18,7 @@ import {
   Leaf,
   MapPin,
   ShieldCheck,
+  Signal,
   ShoppingBag,
   Sparkles,
   TrainFront,
@@ -30,6 +32,7 @@ import { Button } from "@/components/ui/button";
 import { defaultAnswers, GOAL_STORAGE_KEY, STORAGE_KEY } from "@/data/defaults";
 import { calculateAssessment } from "@/lib/calculator";
 import { addLocalSnapshot, createAssessmentSnapshot } from "@/lib/history";
+import { CARBON_SIGNAL_VIDEO } from "@/lib/media";
 import type { AssessmentAnswers } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -757,13 +760,21 @@ export function Questionnaire() {
 
   return (
     <main className="process-shell questionnaire-shell min-h-screen bg-[var(--background)]">
+      <div className="questionnaire-ambient" aria-hidden="true">
+        <video autoPlay muted loop playsInline preload="metadata">
+          <source src={CARBON_SIGNAL_VIDEO} type="video/mp4" />
+        </video>
+        <div />
+      </div>
       <header className="questionnaire-header border-b border-[var(--border)]">
         <div className="questionnaire-header-inner mx-auto flex h-[72px] max-w-[1180px] items-center justify-between px-5 lg:px-8">
           <Logo />
           <div className="flex items-center gap-2">
-            <div className="hidden items-center gap-2 text-xs text-[var(--muted-foreground)] sm:flex">
-              <Clock3 size={14} />
-              {step.minutes} min restantes
+            <div className="questionnaire-status-pill hidden items-center gap-2 text-xs text-[var(--muted-foreground)] sm:flex">
+              <Signal size={13} />
+              Session locale
+              <span />
+              <Clock3 size={13} /> {step.minutes} min
             </div>
             <ThemeToggle />
           </div>
@@ -776,8 +787,31 @@ export function Questionnaire() {
           />
         </div>
       </header>
-      <div className="questionnaire-layout mx-auto grid min-h-[calc(100vh-75px)] max-w-[1180px] grid-rows-[1fr_auto] px-5 lg:px-8">
-        <div className="questionnaire-stage mx-auto w-full max-w-[760px] py-10 sm:py-16 lg:py-20">
+      <div className="questionnaire-layout mx-auto grid min-h-[calc(100vh-75px)] max-w-[1240px] grid-rows-[1fr_auto] px-5 lg:px-8">
+        <aside className="questionnaire-rail" aria-label="Contexte de l’étape">
+          <div>
+            <p className="questionnaire-system-label">
+              <Activity size={13} /> CARBON / INPUT
+            </p>
+            <p className="questionnaire-rail-number">
+              {String(index + 1).padStart(2, "0")}
+            </p>
+            <p className="questionnaire-rail-category">{step.category}</p>
+          </div>
+          <div className="questionnaire-step-map" aria-hidden="true">
+            {steps.map((_, stepIndex) => (
+              <span
+                key={stepIndex}
+                className={stepIndex <= index ? "is-complete" : undefined}
+              />
+            ))}
+          </div>
+          <div className="questionnaire-rail-note">
+            <ShieldCheck size={15} />
+            <p>Données privées. Calcul local. Synchronisation facultative.</p>
+          </div>
+        </aside>
+        <div className="questionnaire-stage w-full py-10 sm:py-16 lg:py-20">
           <div className="mb-10 flex items-center justify-between">
             <div>
               <p className="eyebrow">
@@ -852,6 +886,14 @@ export function Questionnaire() {
       <span className="sr-only" aria-live="polite">
         Étape {index + 1} sur {steps.length}, {step.category}
       </span>
+      <a
+        href="https://www.onlinewebfonts.com/fonts"
+        className="process-font-credit"
+        target="_blank"
+        rel="noreferrer"
+      >
+        Font via OnlineWebFonts
+      </a>
     </main>
   );
 }

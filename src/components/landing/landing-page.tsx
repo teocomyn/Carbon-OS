@@ -10,9 +10,7 @@ import {
   Sigma,
   X,
 } from "lucide-react";
-
-const VIDEO_URL =
-  "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260809_012548_ef22562c-c0ae-4816-ad9d-f8922af4e6a7.mp4";
+import { CARBON_SIGNAL_VIDEO } from "@/lib/media";
 
 const navItems = [
   { label: "Accueil", href: "/", active: true },
@@ -125,7 +123,7 @@ export function LandingPage() {
     <main className="landing-shell">
       <div className="landing-media" aria-hidden="true">
         <video autoPlay muted loop playsInline preload="metadata">
-          <source src={VIDEO_URL} type="video/mp4" />
+          <source src={CARBON_SIGNAL_VIDEO} type="video/mp4" />
         </video>
         <div className="landing-video-wash" />
         <div className="landing-video-grain" />

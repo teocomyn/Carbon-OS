@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { AccountPanel } from "@/components/account/account-panel";
+import { Logo } from "@/components/logo";
 import { ContentSection, PublicPage } from "@/components/public-page";
+import { CARBON_SIGNAL_VIDEO } from "@/lib/media";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -28,7 +30,44 @@ export default async function AccountPage() {
       }
       intro="Créer un compte n’est jamais nécessaire pour calculer votre empreinte. Il sert uniquement à retrouver vos bilans sur plusieurs appareils et à suivre votre progression dans le temps."
     >
-      <AccountPanel configured={configured} email={user?.email ?? null} />
+      <div className="account-vault-grid">
+        <section
+          className="account-vault-visual"
+          aria-label="Coffre de données Carbon OS"
+        >
+          <video
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            aria-hidden="true"
+          >
+            <source src={CARBON_SIGNAL_VIDEO} type="video/mp4" />
+          </video>
+          <div className="account-vault-wash" />
+          <div className="account-vault-content">
+            <Logo compact />
+            <div>
+              <p className="account-vault-code">VAULT / PRIVATE / 01</p>
+              <p className="account-vault-title">
+                Vos données.
+                <br /> Votre décision.
+              </p>
+              <p className="account-vault-caption">
+                Local par défaut. Chiffré en transit si vous activez la
+                synchronisation.
+              </p>
+            </div>
+            <p className="account-vault-status">
+              <span /> Aucune identité publique
+            </p>
+          </div>
+        </section>
+        <div className="account-vault-panel">
+          <AccountPanel configured={configured} email={user?.email ?? null} />
+        </div>
+      </div>
       <ContentSection title="Ce qui est synchronisé">
         <p>
           Vos réponses au questionnaire, les résultats calculés, la date de
@@ -43,6 +82,14 @@ export default async function AccountPage() {
           propre session à lire, ajouter, modifier ou supprimer ces données.
         </p>
       </ContentSection>
+      <a
+        href="https://www.onlinewebfonts.com/fonts"
+        className="process-font-credit is-inline"
+        target="_blank"
+        rel="noreferrer"
+      >
+        Font via OnlineWebFonts
+      </a>
     </PublicPage>
   );
 }
