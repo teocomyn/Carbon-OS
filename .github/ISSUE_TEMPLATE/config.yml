@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Signaler une vulnérabilité
+    url: https://github.com/teocomyn/Carbon-OS/security/advisories/new
+    about: Utiliser exclusivement ce canal privé pour un problème de sécurité.
+  - name: Tester Carbon OS
+    url: https://carbon-os-three.vercel.app
+    about: Ouvrir la version publique actuellement déployée.

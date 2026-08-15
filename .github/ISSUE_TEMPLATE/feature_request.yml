@@ -1,0 +1,49 @@
+name: Proposer une amélioration
+description: Suggérer une amélioration produit, UX, calcul ou documentation.
+title: "feat: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problème utilisateur
+      description: Quelle difficulté réelle cette proposition résout-elle ?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Solution proposée
+      description: Décrire le parcours idéal simplement.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives envisagées
+  - type: dropdown
+    id: area
+    attributes:
+      label: Zone du produit
+      options:
+        - Accueil
+        - Questionnaire
+        - Résultat
+        - Dashboard
+        - Compte et synchronisation
+        - Calcul et données
+        - Accessibilité
+        - Documentation
+        - Autre
+    validations:
+      required: true
+  - type: checkboxes
+    id: principles
+    attributes:
+      label: Principes Carbon OS
+      options:
+        - label: La proposition reste simple et non culpabilisante.
+          required: true
+        - label: La proposition ne nécessite pas de donnée personnelle inutile.
+          required: true
