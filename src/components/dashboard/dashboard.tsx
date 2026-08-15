@@ -49,6 +49,7 @@ import {
   YAxis,
 } from "recharts";
 import { Logo } from "@/components/logo";
+import { CarbonCoach } from "@/components/dashboard/carbon-coach";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -76,6 +77,7 @@ import {
   readLocalHistory,
   writeLocalHistory,
 } from "@/lib/history";
+import type { CarbonCoachContext } from "@/lib/carbon-coach";
 import { buildScenarios } from "@/lib/recommendations";
 import { CARBON_SIGNAL_VIDEO } from "@/lib/media";
 import {
@@ -712,6 +714,37 @@ export function Dashboard() {
       : result.confidenceScore >= 60
         ? "moyenne"
         : "à affiner";
+  const coachContext: CarbonCoachContext = {
+    totalKg: Math.round(result.totalKg / 10) * 10,
+    confidenceScore: result.confidenceScore,
+    goalKg: Math.round(goalKg / 10) * 10,
+    categories: result.categories.map((category) => ({
+      label: category.label,
+      kgCo2e: Math.round(category.kgCo2e / 10) * 10,
+      share:
+        result.totalKg > 0
+          ? Math.round((category.kgCo2e / result.totalKg) * 100)
+          : 0,
+    })),
+    activeActions: activePlannedActions
+      .slice(0, 3)
+      .map(({ item, scenario }) => ({
+        title: scenario.title,
+        savingKg: Math.round(scenario.savingKg / 10) * 10,
+        status:
+          item.status === "completed"
+            ? "Réalisée"
+            : item.status === "in_progress"
+              ? "En cours"
+              : "À essayer",
+      })),
+    recommendations: scenarios.slice(0, 3).map((scenario) => ({
+      title: scenario.title,
+      savingKg: Math.round(scenario.savingKg / 10) * 10,
+      effort: scenario.effort,
+      cost: scenario.cost,
+    })),
+  };
   const changeView = (view: DashboardView) => {
     setActiveView(view);
     setMobileNav(false);
@@ -2241,6 +2274,7 @@ export function Dashboard() {
           </section>
         </div>
       </main>
+      <CarbonCoach context={coachContext} />
     </div>
   );
 }
