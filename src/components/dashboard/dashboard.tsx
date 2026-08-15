@@ -1169,7 +1169,12 @@ export function Dashboard() {
                     className="h-[210px]"
                     aria-label={`Graphique de répartition : ${result.categories.map((c) => `${c.label} ${Math.round((c.kgCo2e / result.totalKg) * 100)} %`).join(", ")}`}
                   >
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer
+                      width="100%"
+                      height="100%"
+                      minWidth={0}
+                      initialDimension={{ width: 320, height: 210 }}
+                    >
                       <PieChart>
                         <Pie
                           data={result.categories}
@@ -1570,7 +1575,12 @@ export function Dashboard() {
                   className="mt-7 h-[260px]"
                   aria-label="Courbe de progression carbone"
                 >
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer
+                    width="100%"
+                    height="100%"
+                    minWidth={0}
+                    initialDimension={{ width: 700, height: 260 }}
+                  >
                     <LineChart
                       data={progressData}
                       margin={{ top: 8, right: 8, left: -18, bottom: 0 }}

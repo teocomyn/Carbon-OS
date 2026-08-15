@@ -24,6 +24,7 @@ import {
   TrainFront,
   Utensils,
   Waves,
+  X,
   Zap,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
@@ -63,8 +64,9 @@ type Choice<T extends string | number> = {
 const steps = [
   {
     category: "Profil",
-    title: "Quel niveau de précision souhaitez-vous ?",
-    subtitle: "Vous pourrez toujours affiner vos réponses plus tard.",
+    title: "Comment voulez-vous répondre ?",
+    subtitle:
+      "En 4 minutes avec nos estimations, ou en 8 minutes avec vos chiffres.",
     minutes: 4,
   },
   {
@@ -321,17 +323,19 @@ export function Questionnaire() {
     setTouchedSteps((current) =>
       current.includes(index) ? current : [...current, index],
     );
-    setEstimatedSteps((current) => current.filter((stepIndex) => stepIndex !== index));
+    setEstimatedSteps((current) =>
+      current.filter((stepIndex) => stepIndex !== index),
+    );
   };
   useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
     startedAt.current = Date.now();
     trackCarbonEvent({ name: "Questionnaire démarré" });
     const trackAbandonment = () => {
       if (completed.current || abandonmentTracked.current) return;
       abandonmentTracked.current = true;
       const currentChapter = chapters.find(
-        (item) =>
-          indexRef.current >= item.from && indexRef.current <= item.to,
+        (item) => indexRef.current >= item.from && indexRef.current <= item.to,
       );
       const chapterName: QuestionnaireChapter =
         currentChapter?.label === "Profil"
@@ -454,33 +458,33 @@ export function Questionnaire() {
         return (
           <div className="grid gap-4 sm:grid-cols-2">
             <OptionCard
-              selected={stepWasAnswered && answers.mode === "quick"}
+              selected={answers.mode === "quick"}
               onSelect={(v) => update("mode", v)}
               choice={{
                 value: "quick",
                 label: "Mode rapide",
-                description: "Environ 4 min · nous estimons les détails.",
+                description: "4 min · Nous estimons ce qui manque.",
                 icon: Zap,
               }}
             />
             <OptionCard
-              selected={stepWasAnswered && answers.mode === "precise"}
+              selected={answers.mode === "precise"}
               onSelect={(v) => update("mode", v)}
               choice={{
                 value: "precise",
                 label: "Mode précis",
-                description: "Environ 8 min · ajoutez vos données réelles.",
+                description: "8 min · Ajoutez vos chiffres réels.",
                 icon: Gauge,
               }}
             />
-            <div className="sm:col-span-2 mt-2 flex items-start gap-3 rounded-2xl bg-[var(--surface)] p-4 text-xs leading-5 text-[var(--muted-foreground)]">
+            <div className="questionnaire-privacy-note sm:col-span-2 mt-2 flex items-start gap-3 rounded-2xl bg-[var(--surface)] p-4 text-xs leading-5 text-[var(--muted-foreground)]">
               <ShieldCheck
                 size={17}
                 className="mt-0.5 shrink-0 text-[var(--positive)]"
               />
               <p>
-                Aucune réponse ne quitte votre navigateur. Le compte ne sera
-                proposé qu’après le résultat, pour une sauvegarde volontaire.
+                Vos réponses restent sur cet appareil. Le compte est facultatif
+                et proposé seulement après le résultat.
               </p>
             </div>
           </div>
@@ -562,8 +566,8 @@ export function Questionnaire() {
                       Aucune distance en voiture
                     </p>
                     <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">
-                      Vous avez indiqué ne pas avoir de voiture. Ce poste restera
-                      donc à zéro.
+                      Vous avez indiqué ne pas avoir de voiture. Ce poste
+                      restera donc à zéro.
                     </p>
                   </div>
                 </div>
@@ -841,7 +845,9 @@ export function Questionnaire() {
                 <OptionCard
                   compact
                   key={value}
-                  selected={stepWasAnswered && answers.purchaseProfile === value}
+                  selected={
+                    stepWasAnswered && answers.purchaseProfile === value
+                  }
                   onSelect={(v) => update("purchaseProfile", v)}
                   choice={{ value, label, description, icon: ShoppingBag }}
                 />
@@ -940,7 +946,8 @@ export function Questionnaire() {
               <Signal size={13} />
               Sauvegarde locale
               <span />
-              <Clock3 size={13} /> {answers.mode === "precise" ? "≈ 8 min" : "≈ 4 min"}
+              <Clock3 size={13} />{" "}
+              {answers.mode === "precise" ? "≈ 8 min" : "≈ 4 min"}
             </div>
             <ThemeToggle />
           </div>
@@ -969,7 +976,9 @@ export function Questionnaire() {
               <span
                 key={currentChapterIndex}
                 className={
-                  currentChapterIndex <= chapterIndex ? "is-complete" : undefined
+                  currentChapterIndex <= chapterIndex
+                    ? "is-complete"
+                    : undefined
                 }
               />
             ))}
@@ -1007,7 +1016,8 @@ export function Questionnaire() {
               </p>
               {resumed && (
                 <p className="mt-4 inline-flex items-center gap-2 rounded-full bg-[var(--positive-soft)] px-3 py-1.5 text-xs font-medium text-[var(--positive)]">
-                  <Check size={13} /> Votre progression a été reprise automatiquement
+                  <Check size={13} /> Votre progression a été reprise
+                  automatiquement
                 </p>
               )}
               <div className="questionnaire-content mt-9 sm:mt-11">
@@ -1024,7 +1034,7 @@ export function Questionnaire() {
               onClick={back}
             >
               <span className="questionnaire-back-mark" aria-hidden="true">
-                {index === 0 ? "N" : <ChevronLeft size={18} />}
+                {index === 0 ? <X size={17} /> : <ChevronLeft size={18} />}
               </span>
               {index === 0 ? "Quitter" : "Retour"}
             </Button>
@@ -1051,7 +1061,7 @@ export function Questionnaire() {
                     : stepWasAnswered
                       ? "Continuer"
                       : index === 0
-                        ? "Utiliser le mode rapide"
+                        ? "Commencer en 4 min"
                         : "Estimer et continuer"}
                 {!saving && <ArrowRight size={17} />}
               </Button>

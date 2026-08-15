@@ -43,7 +43,13 @@ const stats = [
     decimals: 0,
     label: "Local par défaut",
   },
-  { symbol: "#", target: 27, suffix: "", decimals: 0, label: "Sources publiques" },
+  {
+    symbol: "#",
+    target: 27,
+    suffix: "",
+    decimals: 0,
+    label: "Sources publiques",
+  },
 ];
 
 function CarbonMark() {
@@ -103,7 +109,9 @@ function CountUp({
 
 export function LandingPage() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const accountLabel = isSupabaseConfigured() ? "Mon compte" : "Synchronisation";
+  const accountLabel = isSupabaseConfigured()
+    ? "Mon compte"
+    : "Synchronisation";
 
   useEffect(() => {
     trackCarbonEvent({ name: "Accueil consulté" });
@@ -228,7 +236,7 @@ export function LandingPage() {
                 <Sigma size={14} />
               </span>
             </div>
-            <p>Sourcé par l’ADEME, Impact CO₂ et NGC</p>
+            <p>Sources publiques : ADEME, Impact CO₂, NGC</p>
           </div>
 
           <h1 id="landing-title" className="landing-headline">
@@ -240,9 +248,8 @@ export function LandingPage() {
             className="landing-subhead landing-anim"
             style={{ "--delay": ".28s" } as React.CSSProperties}
           >
-            Mesurez le coût carbone de votre quotidien. Identifiez les décisions
-            qui comptent vraiment et suivez vos progrès, sans compte
-            obligatoire.
+            Estimez votre empreinte en 4 minutes. Découvrez ce qui pèse vraiment
+            et les trois actions les plus utiles, sans compte obligatoire.
           </p>
 
           <Link
@@ -251,7 +258,7 @@ export function LandingPage() {
             className="landing-cta landing-anim"
             style={{ "--delay": ".4s" } as React.CSSProperties}
           >
-            Calculer mon empreinte <ArrowUpRight size={16} />
+            Faire mon bilan · 4 min <ArrowUpRight size={16} />
           </Link>
 
           <div

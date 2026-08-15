@@ -74,7 +74,7 @@ export function AssessmentResult() {
   }
 
   return (
-    <main className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+    <main className="process-shell result-shell min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <header className="border-b border-[var(--border)]">
         <div className="mx-auto flex h-[72px] max-w-[1180px] items-center justify-between px-5 lg:px-8">
           <Logo />
@@ -88,7 +88,7 @@ export function AssessmentResult() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-[1040px] px-5 py-10 sm:py-16 lg:px-8 lg:py-20">
+      <div className="result-content mx-auto max-w-[1040px] px-5 py-10 sm:py-16 lg:px-8 lg:py-20">
         <motion.section
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
@@ -142,7 +142,10 @@ export function AssessmentResult() {
                       <motion.div
                         initial={{ width: 0 }}
                         animate={{ width: `${share}%` }}
-                        transition={{ delay: 0.15 + index * 0.08, duration: 0.55 }}
+                        transition={{
+                          delay: 0.15 + index * 0.08,
+                          duration: 0.55,
+                        }}
                         className="h-full rounded-full"
                         style={{ backgroundColor: category.color }}
                       />
@@ -175,7 +178,9 @@ export function AssessmentResult() {
               <p className="mt-8 text-3xl font-semibold tracking-[-.05em] text-[#8fefcf]">
                 −{formatKg(topAction.savingKg)}
               </p>
-              <p className="mt-1 text-xs text-white/50">potentiellement par an</p>
+              <p className="mt-1 text-xs text-white/50">
+                potentiellement par an
+              </p>
             </div>
           )}
         </section>
@@ -202,7 +207,10 @@ export function AssessmentResult() {
         <details className="group mx-auto mt-12 max-w-[760px] rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold">
             Comment ce résultat est-il calculé ?
-            <ChevronDown size={16} className="transition-transform group-open:rotate-180" />
+            <ChevronDown
+              size={16}
+              className="transition-transform group-open:rotate-180"
+            />
           </summary>
           <div className="mt-5 space-y-3 border-t border-[var(--border)] pt-5 text-sm leading-6 text-[var(--muted-foreground)]">
             <p>

@@ -1825,3 +1825,390 @@ body.landing-menu-open {
     display: none;
   }
 }
+
+/* Mobile product pass — compact, safe-area aware and free of fixed-layer crops. */
+html,
+body {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+@media (max-width: 720px) {
+  .panel {
+    border-radius: 18px;
+  }
+
+  /* Landing: keep the promise and primary action inside one useful viewport. */
+  .landing-shell {
+    height: 100svh;
+    min-height: 540px;
+  }
+  .landing-page {
+    padding: max(14px, env(safe-area-inset-top))
+      max(14px, env(safe-area-inset-right))
+      max(14px, env(safe-area-inset-bottom))
+      max(14px, env(safe-area-inset-left));
+  }
+  .landing-hero {
+    padding-block: 12px;
+  }
+  .landing-headline span {
+    white-space: normal;
+    text-wrap: balance;
+  }
+  .landing-subhead {
+    max-width: 350px;
+  }
+  .landing-cta {
+    min-height: 48px;
+  }
+  .landing-trust {
+    max-width: 100%;
+  }
+  .landing-trust p {
+    min-width: 0;
+    max-width: calc(100vw - 92px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .landing-stats {
+    display: none;
+  }
+
+  /* Questionnaire: sticky context, shorter decisions and an unclipped CTA. */
+  .questionnaire-shell {
+    min-height: 100svh;
+    scroll-padding-top: 66px;
+  }
+  .questionnaire-header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+  .questionnaire-header-inner {
+    height: 62px;
+    padding-inline: 16px;
+  }
+  .questionnaire-header .group > span:first-child {
+    width: 30px;
+    height: 30px;
+    border-radius: 10px;
+  }
+  .questionnaire-header .group > span:last-child {
+    font-size: 14px;
+  }
+  .questionnaire-ambient {
+    top: 65px;
+  }
+  .questionnaire-layout {
+    min-height: calc(100svh - 65px);
+    padding-right: 16px;
+    padding-bottom: calc(76px + env(safe-area-inset-bottom));
+    padding-left: 16px;
+  }
+  .questionnaire-stage {
+    padding-top: 24px;
+    padding-bottom: 28px;
+  }
+  .questionnaire-stage > div:first-child {
+    margin-bottom: 22px;
+  }
+  .questionnaire-title {
+    max-width: 100%;
+    font-size: clamp(2.05rem, 10vw, 2.75rem);
+    line-height: 1.01;
+    letter-spacing: -0.06em;
+    overflow-wrap: anywhere;
+  }
+  .questionnaire-title + p {
+    margin-top: 12px;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .questionnaire-content {
+    margin-top: 24px;
+  }
+  .questionnaire-option,
+  .questionnaire-option.is-compact {
+    min-height: 78px;
+    gap: 12px;
+    border-radius: 17px;
+    padding: 14px;
+  }
+  .questionnaire-option:not(.is-compact) > span:first-of-type,
+  .questionnaire-option > span:first-of-type {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+  }
+  .questionnaire-option > span:nth-of-type(2) > span:first-child {
+    font-size: 15px;
+  }
+  .questionnaire-option > span:nth-of-type(2) > span:last-child {
+    margin-top: 3px;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .questionnaire-option > span:last-child {
+    width: 22px;
+    height: 22px;
+  }
+  .questionnaire-privacy-note {
+    margin-top: 0;
+    padding: 13px;
+    line-height: 1.5;
+  }
+  .questionnaire-range {
+    border-radius: 18px;
+    padding: 16px;
+  }
+  .questionnaire-range input[type="range"] {
+    min-height: 28px;
+    margin-top: 16px;
+  }
+  .questionnaire-segment {
+    min-width: 0;
+  }
+  .questionnaire-segment button {
+    min-width: 0;
+    padding-inline: 3px;
+    font-size: 11px;
+    overflow-wrap: anywhere;
+  }
+  .questionnaire-footer {
+    min-height: 0;
+    padding: 9px 16px max(9px, env(safe-area-inset-bottom));
+  }
+  .questionnaire-footer > div {
+    width: 100%;
+    gap: 10px;
+  }
+  .questionnaire-back {
+    min-width: 40px;
+    flex: none;
+    gap: 0;
+    padding: 0;
+    font-size: 0;
+  }
+  .questionnaire-back-mark {
+    width: 40px;
+    height: 40px;
+  }
+  .questionnaire-footer > div > div:last-child {
+    min-width: 0;
+    flex: 1;
+    justify-content: flex-end;
+  }
+  .questionnaire-next {
+    width: min(100%, 220px);
+    min-width: 0;
+    max-width: 220px;
+    height: 48px;
+    padding-inline: 15px;
+    font-size: 13.5px;
+    white-space: nowrap;
+  }
+
+  /* Result: preserve hierarchy while keeping every value readable at 320 px. */
+  .result-shell > header > div {
+    height: 64px;
+    padding-inline: 16px;
+  }
+  .result-content {
+    padding: 28px 16px 64px;
+  }
+  .result-content > section:first-child h1 {
+    margin-top: 14px;
+    font-size: 1.9rem;
+    line-height: 1.08;
+  }
+  .result-content > section:first-child .number-tabular {
+    margin-top: 20px;
+    font-size: clamp(5rem, 25vw, 6.5rem);
+  }
+  .result-content > section:nth-child(2) {
+    margin-top: 34px;
+  }
+  .result-content .panel,
+  .result-content section > div {
+    border-radius: 18px;
+  }
+  .result-content .panel {
+    padding: 20px;
+  }
+  .result-content > section:nth-child(3) a {
+    width: 100%;
+  }
+
+  /* Dashboard: reduce oversized desktop rhythm and retain generous tap areas. */
+  .dashboard-shell > header > div:first-child {
+    height: 64px;
+    padding-inline: 12px;
+  }
+  .dashboard-shell > main > div {
+    padding: 24px 16px 56px;
+  }
+  .dashboard-shell section > div:first-child h1 {
+    font-size: clamp(2.15rem, 10.5vw, 2.65rem);
+    line-height: 1.01;
+  }
+  .dashboard-shell button,
+  .dashboard-shell a,
+  .dashboard-shell section,
+  .dashboard-shell .panel {
+    min-width: 0;
+  }
+  .dashboard-shell svg {
+    flex: none;
+  }
+  .dashboard-signal-card {
+    min-height: 440px;
+    border-radius: 18px;
+    padding: 20px;
+  }
+  .dashboard-signal-card .number-tabular {
+    font-size: clamp(4.35rem, 22vw, 5.8rem);
+  }
+  .dashboard-shell [class*="rounded-[24px]"] {
+    border-radius: 18px;
+  }
+
+  /* Account: put the useful action before the visual story. */
+  .account-shell > article {
+    padding: 104px 16px 64px;
+  }
+  .account-shell > article > a {
+    margin-bottom: 30px;
+  }
+  .account-shell > article > h1 {
+    margin-top: 14px;
+    font-size: clamp(2.3rem, 10.5vw, 3.15rem);
+    line-height: 1.02;
+    letter-spacing: -0.06em;
+  }
+  .account-shell > article > h1 + p {
+    margin-top: 18px;
+    font-size: 15px;
+    line-height: 1.65;
+  }
+  .account-shell article > .mt-14 {
+    margin-top: 32px;
+    gap: 14px;
+  }
+  .account-vault-grid {
+    gap: 14px;
+  }
+  .account-vault-panel {
+    order: -1;
+  }
+  .account-card,
+  .account-vault-panel > section,
+  .account-shell article > .mt-14 > section {
+    border-radius: 18px;
+    padding: 20px;
+  }
+  .account-vault-visual {
+    min-height: 310px;
+    border-radius: 18px;
+  }
+  .account-vault-content {
+    padding: 20px;
+  }
+  .account-vault-title {
+    font-size: 2.35rem;
+  }
+  .account-card form button {
+    width: 100%;
+  }
+  .account-shell > footer > div {
+    padding-inline: 16px;
+  }
+}
+
+@media (max-width: 360px) {
+  .landing-trust p {
+    max-width: calc(100vw - 88px);
+  }
+  .landing-headline {
+    font-size: 2rem;
+  }
+  .questionnaire-title {
+    font-size: 2rem;
+  }
+  .questionnaire-range > div:first-child {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .questionnaire-range .number-tabular {
+    font-size: 1.35rem;
+  }
+  .dashboard-signal-card {
+    min-height: 410px;
+  }
+  .dashboard-shell section > div:first-child h1 {
+    font-size: 2rem;
+  }
+}
+
+@media (max-height: 600px) and (max-width: 900px) and (orientation: landscape) {
+  .landing-shell {
+    min-height: 100svh;
+  }
+  .landing-page {
+    padding-block: 10px;
+  }
+  .landing-logo,
+  .landing-burger {
+    width: 42px;
+    height: 42px;
+  }
+  .landing-trust,
+  .landing-stats {
+    display: none;
+  }
+  .landing-headline {
+    font-size: clamp(2.25rem, 6.5vw, 3.2rem);
+  }
+  .landing-subhead {
+    margin-top: 10px;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .landing-cta {
+    min-height: 44px;
+    margin-top: 12px;
+  }
+  .landing-privacy {
+    margin-top: 6px;
+  }
+  .questionnaire-header-inner {
+    height: 58px;
+  }
+  .questionnaire-ambient {
+    top: 61px;
+  }
+  .questionnaire-stage {
+    padding-top: 22px;
+    padding-bottom: 24px;
+  }
+  .questionnaire-stage > div:first-child {
+    margin-bottom: 18px;
+  }
+  .questionnaire-title {
+    font-size: 2.2rem;
+  }
+  .questionnaire-content {
+    margin-top: 20px;
+  }
+  .questionnaire-footer {
+    min-height: 66px;
+  }
+}

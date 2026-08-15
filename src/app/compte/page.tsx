@@ -31,9 +31,9 @@ export default async function AccountPage({
       title={
         user
           ? "Votre historique vous suit."
-          : "Local d’abord. Synchronisé si vous le choisissez."
+          : "Un compte, seulement si vous le souhaitez."
       }
-      intro="Créer un compte n’est jamais nécessaire pour calculer votre empreinte. Il sert uniquement à retrouver vos bilans sur plusieurs appareils et à suivre votre progression dans le temps."
+      intro="Sans compte, tout fonctionne sur cet appareil. Activez la synchronisation uniquement pour retrouver vos bilans et suivre votre progression ailleurs."
     >
       <div className="account-vault-grid">
         <section
