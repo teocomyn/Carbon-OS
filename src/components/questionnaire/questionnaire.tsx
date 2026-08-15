@@ -1077,17 +1077,16 @@ export function Questionnaire() {
                 className="questionnaire-next"
                 variant="accent"
                 onClick={next}
-                disabled={saving}
+                loading={saving}
+                loadingText="Calcul en cours…"
               >
-                {saving
-                  ? "Calcul en cours…"
-                  : index === steps.length - 1
-                    ? "Voir mon résultat"
-                    : stepWasAnswered
-                      ? "Continuer"
-                      : index === 0
-                        ? "Commencer en 4 min"
-                        : "Estimer et continuer"}
+                {index === steps.length - 1
+                  ? "Voir mon résultat"
+                  : stepWasAnswered
+                    ? "Continuer"
+                    : index === 0
+                      ? "Commencer en 4 min"
+                      : "Estimer et continuer"}
                 {!saving && <ArrowRight size={17} />}
               </Button>
             </div>

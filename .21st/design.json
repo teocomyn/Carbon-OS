@@ -1,0 +1,140 @@
+{
+  "version": 1,
+  "project": {
+    "name": "carbon-os",
+    "productType": null,
+    "stack": [
+      "nextjs",
+      "react",
+      "tailwind-v4"
+    ]
+  },
+  "sources": {
+    "tokens": [
+      "src/app/globals.css"
+    ],
+    "components": [
+      "src/components/ui"
+    ],
+    "assets": [],
+    "instructions": [
+      "AGENTS.md",
+      "CLAUDE.md"
+    ]
+  },
+  "design": {
+    "colorMode": "light-and-dark",
+    "colors": {
+      "--background": {
+        "value": "#f5f5f2",
+        "source": "src/app/globals.css"
+      },
+      "--foreground": {
+        "value": "#111216",
+        "source": "src/app/globals.css"
+      },
+      "--muted": {
+        "value": "#e8e8e3",
+        "source": "src/app/globals.css"
+      },
+      "--muted-foreground": {
+        "value": "#747984",
+        "source": "src/app/globals.css"
+      },
+      "--border": {
+        "value": "#d8d9d5",
+        "source": "src/app/globals.css"
+      },
+      "--accent": {
+        "value": "#236c50",
+        "source": "src/app/globals.css"
+      },
+      "--accent-soft": {
+        "value": "rgba(35, 108, 80, 0.14)",
+        "source": "src/app/globals.css"
+      },
+      "--landing-muted": {
+        "value": "#a7a7a7",
+        "source": "src/app/globals.css"
+      }
+    },
+    "typography": {
+      "--landing-text": {
+        "value": "#fff",
+        "source": "src/app/globals.css"
+      }
+    },
+    "spacing": {},
+    "radius": {},
+    "shadows": {
+      "--landing-shadow": {
+        "value": "0 4px 14px rgba(0, 0, 0, 0.16)",
+        "source": "src/app/globals.css"
+      }
+    },
+    "motion": {},
+    "density": "unknown"
+  },
+  "components": {
+    "installed": [
+      "border-beam",
+      "button"
+    ],
+    "preferredPrimitives": [
+      "radix-ui"
+    ],
+    "patterns": []
+  },
+  "constraints": {
+    "must": [],
+    "avoid": []
+  },
+  "decisions": [
+    {
+      "id": "carbon-material-buttons",
+      "summary": "Use a restrained liquid-metal material treatment for the shared Button primitive. Reserve the strongest deep-green surface for accent CTAs; keep secondary and icon actions visually quieter.",
+      "source": "User direction and 21st component inspiration 21685",
+      "constraints": [
+        "No WebGL shader per button",
+        "No purple accents",
+        "Preserve clear action hierarchy",
+        "Respect reduced-motion and touch input"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "fact": "components.installed",
+      "source": "src/components/ui"
+    },
+    {
+      "fact": "design.colorMode:light-and-dark",
+      "source": "src/app/globals.css"
+    },
+    {
+      "fact": "design.tokens",
+      "source": "src/app/globals.css"
+    },
+    {
+      "fact": "project.instructions",
+      "source": "AGENTS.md"
+    },
+    {
+      "fact": "project.instructions",
+      "source": "CLAUDE.md"
+    },
+    {
+      "fact": "project.stack:nextjs",
+      "source": "package.json"
+    },
+    {
+      "fact": "project.stack:react",
+      "source": "package.json"
+    },
+    {
+      "fact": "project.stack:tailwind-v4",
+      "source": "package.json"
+    }
+  ],
+  "generatedAt": "2026-08-15T12:41:32.086Z"
+}

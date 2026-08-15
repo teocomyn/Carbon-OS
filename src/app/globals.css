@@ -93,6 +93,192 @@ input {
 .number-tabular {
   font-variant-numeric: tabular-nums;
 }
+
+/* Carbon OS material buttons — a restrained liquid-metal treatment without WebGL. */
+.carbon-button {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid transparent;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.13),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    0 2px 4px rgba(0, 0, 0, 0.12),
+    0 10px 28px rgba(0, 0, 0, 0.08);
+  transform: translateZ(0);
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    background-color 220ms ease,
+    color 220ms ease,
+    filter 220ms ease;
+}
+
+.carbon-button::before,
+.carbon-button::after {
+  position: absolute;
+  pointer-events: none;
+  content: "";
+}
+
+.carbon-button::before {
+  inset: 1px 8% auto;
+  height: 45%;
+  border-radius: inherit;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.18),
+    rgba(255, 255, 255, 0)
+  );
+  opacity: 0.7;
+}
+
+.carbon-button::after {
+  top: -75%;
+  left: -35%;
+  width: 28%;
+  height: 250%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.28),
+    transparent
+  );
+  opacity: 0;
+  transform: translateX(-180%) rotate(16deg);
+  transition:
+    transform 620ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 180ms ease;
+}
+
+.carbon-button--primary {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--foreground) 90%, white 10%),
+    var(--foreground)
+  );
+}
+
+.carbon-button--accent {
+  border-color: color-mix(in srgb, var(--accent) 78%, white 12%);
+  background:
+    radial-gradient(
+      circle at 50% -150%,
+      rgba(255, 255, 255, 0.42),
+      transparent 58%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent) 88%, #68b999 12%),
+      color-mix(in srgb, var(--accent) 88%, black 12%)
+    );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.23),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.28),
+    0 2px 5px rgba(0, 0, 0, 0.2),
+    0 14px 34px var(--accent-soft);
+}
+
+.carbon-button--secondary {
+  border-color: var(--border);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--card) 93%, white 7%),
+    color-mix(in srgb, var(--card) 94%, var(--surface) 6%)
+  );
+}
+
+.carbon-button--ghost {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.carbon-button--ghost::before,
+.carbon-button--ghost::after,
+.carbon-button--icon::after {
+  display: none;
+}
+
+.carbon-button > svg {
+  flex: none;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.carbon-button__spinner {
+  width: 1em;
+  height: 1em;
+  flex: none;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  animation: carbon-button-spin 700ms linear infinite;
+}
+
+@keyframes carbon-button-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .carbon-button:not(:disabled):hover {
+    transform: translateY(-1px);
+  }
+
+  .carbon-button:not(:disabled):hover::after {
+    opacity: 0.75;
+    transform: translateX(620%) rotate(16deg);
+  }
+
+  .carbon-button--primary:not(:disabled):hover,
+  .carbon-button--accent:not(:disabled):hover {
+    filter: brightness(1.055) saturate(1.03);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.24),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.25),
+      0 3px 7px rgba(0, 0, 0, 0.2),
+      0 17px 38px var(--accent-soft);
+  }
+
+  .carbon-button--secondary:not(:disabled):hover {
+    border-color: color-mix(
+      in srgb,
+      var(--muted-foreground) 55%,
+      var(--border)
+    );
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.16),
+      0 8px 24px rgba(0, 0, 0, 0.1);
+  }
+
+  .carbon-button--ghost:not(:disabled):hover {
+    background: var(--surface);
+    color: var(--foreground);
+  }
+
+  .carbon-button:not(.carbon-button--icon):not(:disabled):hover
+    > svg:last-child {
+    transform: translateX(2px);
+  }
+}
+
+.carbon-button:not(:disabled):active {
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.2),
+    0 1px 2px rgba(0, 0, 0, 0.12);
+  transform: translateY(1px) scale(0.985);
+}
+
+.carbon-button:disabled {
+  filter: saturate(0.65);
+}
+
+.carbon-button:disabled::after {
+  display: none;
+}
+
 input[type="range"] {
   accent-color: var(--accent);
 }

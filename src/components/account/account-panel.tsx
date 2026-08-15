@@ -4,14 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { Turnstile } from "@marsidev/react-turnstile";
-import {
-  Check,
-  Cloud,
-  LoaderCircle,
-  LogOut,
-  ShieldCheck,
-  Trash2,
-} from "lucide-react";
+import { Check, Cloud, LogOut, ShieldCheck, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { clearLocalHistory } from "@/lib/history";
 import { trackCarbonEvent } from "@/lib/analytics";
@@ -168,10 +161,7 @@ export function AccountPanel({
         Aucun mot de passe à mémoriser. Le lien à usage unique crée ou ouvre
         votre compte, puis votre historique local est fusionné sans doublon.
       </p>
-      <form
-        onSubmit={requestMagicLink}
-        className="mt-7 max-w-[620px]"
-      >
+      <form onSubmit={requestMagicLink} className="mt-7 max-w-[620px]">
         <div className="flex flex-col gap-3 sm:flex-row">
           <label className="sr-only" htmlFor="account-email">
             Adresse e-mail
@@ -189,9 +179,10 @@ export function AccountPanel({
           <Button
             type="submit"
             variant="accent"
+            loading={pending}
+            loadingText="Envoi en cours…"
             disabled={pending || Boolean(turnstileSiteKey && !captchaToken)}
           >
-            {pending && <LoaderCircle size={15} className="animate-spin" />}
             Envoyer le lien
           </Button>
         </div>
