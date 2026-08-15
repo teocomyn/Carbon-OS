@@ -161,7 +161,7 @@ function OptionCard<T extends string | number>({
       aria-pressed={selected}
       onClick={() => onSelect(choice.value)}
       className={cn(
-        "questionnaire-option group relative flex w-full items-center gap-4 rounded-2xl border bg-[var(--card)] text-left outline-none transition-all duration-200 focus-visible:ring-2 focus-visible:ring-[var(--accent)]",
+        "questionnaire-option group relative flex w-full items-center gap-4 rounded-2xl border bg-[var(--card)] text-left outline-none transition-[border-color,background-color,box-shadow,transform] duration-200 focus-visible:ring-2 focus-visible:ring-[var(--accent)]",
         compact && "is-compact",
         compact ? "min-h-16 p-4" : "min-h-24 p-5",
         selected
@@ -296,7 +296,7 @@ function Segment<T extends string | number>({
           type="button"
           onClick={() => onChange(item.value)}
           className={cn(
-            "min-h-10 rounded-[9px] px-2 text-xs font-semibold transition-all",
+            "min-h-10 rounded-[9px] px-2 text-xs font-semibold transition-[background-color,color,box-shadow]",
             active && value === item.value
               ? "bg-[var(--card)] text-[var(--foreground)] shadow-sm"
               : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]",
@@ -733,7 +733,7 @@ export function Questionnaire() {
                   <div className="mt-3 flex items-center rounded-xl bg-[var(--surface)] px-4">
                     <input
                       aria-describedby="heating-consumption-hint"
-                      className="min-w-0 flex-1 bg-transparent py-3 outline-none"
+                      className="min-w-0 flex-1 bg-transparent py-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--positive)]"
                       type="number"
                       min="0"
                       placeholder="8 000"
@@ -764,7 +764,7 @@ export function Questionnaire() {
                   <div className="mt-3 flex items-center rounded-xl bg-[var(--surface)] px-4">
                     <input
                       aria-describedby="electricity-consumption-hint"
-                      className="min-w-0 flex-1 bg-transparent py-3 outline-none"
+                      className="min-w-0 flex-1 bg-transparent py-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--positive)]"
                       type="number"
                       min="0"
                       placeholder="2 300"

@@ -10,7 +10,7 @@ export function SiteHeader() {
       <div className="mx-auto flex h-[72px] max-w-[1240px] items-center justify-between px-5 lg:px-8">
         <Logo />
         <nav
-          className="hidden items-center gap-8 text-sm text-[var(--muted-foreground)] md:flex"
+          className="hidden items-center gap-8 text-sm text-[var(--nav-foreground)] md:flex"
           aria-label="Navigation principale"
         >
           <Link
