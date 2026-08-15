@@ -280,7 +280,7 @@ function CalculationDialog({
       <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-[80] bg-black/45 backdrop-blur-sm data-[state=open]:animate-in" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-[90] max-h-[88vh] w-[calc(100%-32px)] max-w-[560px] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[26px] border border-[var(--border)] bg-[var(--card)] p-6 shadow-2xl outline-none sm:p-8">
+        <Dialog.Content className="fixed inset-x-4 top-1/2 z-[90] max-h-[88vh] max-w-[560px] -translate-y-1/2 overflow-y-auto rounded-[26px] border border-[var(--border)] bg-[var(--card)] p-6 shadow-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--positive)] sm:inset-x-auto sm:left-1/2 sm:w-full sm:-translate-x-1/2 sm:p-8">
           <div className="flex items-start justify-between">
             <div>
               <Dialog.Title className="text-2xl font-semibold tracking-[-.035em]">
@@ -490,7 +490,7 @@ function ScenarioCard({
   return (
     <div
       className={cn(
-        "group flex w-full flex-col rounded-2xl border text-left transition-all",
+        "group flex w-full flex-col rounded-2xl border text-left transition-[border-color,background-color]",
         active
           ? "border-[var(--accent)] bg-[var(--accent-soft)]"
           : "border-[var(--border)] bg-[var(--card)] hover:border-[var(--muted-foreground)]",
@@ -1085,6 +1085,7 @@ export function Dashboard() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <CarbonCoach context={coachContext} />
             <Button
               asChild
               variant="ghost"
@@ -1166,7 +1167,7 @@ export function Dashboard() {
               </div>
             </div>
             <div className="mt-7 grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
-              <div className="dashboard-signal-card panel relative overflow-hidden p-6 sm:p-8">
+              <div className="dashboard-signal-card panel relative order-2 overflow-hidden p-6 sm:p-8 xl:order-1">
                 <div className="dashboard-signal-media" aria-hidden="true">
                   <video autoPlay muted loop playsInline preload="metadata">
                     <source src={CARBON_SIGNAL_VIDEO} type="video/mp4" />
@@ -1188,15 +1189,6 @@ export function Dashboard() {
                       {formatTons(result.totalKg)}
                     </p>
                     <p className="mt-3 text-sm font-medium">tonnes CO₂e / an</p>
-                    <div className="mt-7 flex flex-wrap gap-2">
-                      <span className="rounded-full bg-[var(--surface)] px-3 py-1.5 text-xs">
-                        ≈ {Math.round(result.totalKg / 365)} kg / jour
-                      </span>
-                      <span className="rounded-full bg-[var(--surface)] px-3 py-1.5 text-xs">
-                        Fourchette indicative {formatTons(result.lowKg)}–
-                        {formatTons(result.highKg)} t
-                      </span>
-                    </div>
                   </div>
                   <div
                     className="h-[210px]"
@@ -1244,7 +1236,7 @@ export function Dashboard() {
                   </div>
                 </div>
               </div>
-              <div className="panel flex flex-col p-6">
+              <div className="dashboard-priority-card panel order-1 flex flex-col border-[color-mix(in_srgb,var(--accent)_62%,var(--border))] p-6 xl:order-2">
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="text-sm font-semibold">
@@ -1276,7 +1268,7 @@ export function Dashboard() {
                         potentiellement évités par an
                       </p>
                       <Button
-                        variant="secondary"
+                        variant="accent"
                         className="mt-5 w-full"
                         onClick={() => changeView("act")}
                       >
@@ -1290,27 +1282,33 @@ export function Dashboard() {
                 )}
               </div>
             </div>
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              <MetricCard
-                label="Fourchette indicative"
-                value={`${formatTons(result.lowKg)}–${formatTons(result.highKg)} t`}
-                note="Selon l’incertitude des activités"
-                icon={Gauge}
-              />
-              <MetricCard
-                label="Potentiel identifié"
-                value={`−${formatTons(scenarios.reduce((s, x) => s + x.savingKg, 0))} t`}
-                note="Leviers non cumulés mécaniquement"
-                icon={Target}
-              />
-              <MetricCard
-                label="Objectif long terme"
-                value="2,0 t"
-                note="Trajectoire neutralité 2050"
-                icon={Leaf}
-                accent
-              />
-            </div>
+            <details className="dashboard-advanced-details group mt-5 rounded-2xl border border-[var(--border)] bg-[var(--card)]">
+              <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 rounded-2xl px-5 py-3 text-sm font-semibold text-[var(--muted-foreground)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--positive)]">
+                <span>Voir les détails du bilan</span>
+                <ChevronRight className="transition-transform group-open:rotate-90" size={16} />
+              </summary>
+              <div className="grid gap-3 border-t border-[var(--border)] p-3 sm:grid-cols-3">
+                <MetricCard
+                  label="Fourchette indicative"
+                  value={`${formatTons(result.lowKg)}–${formatTons(result.highKg)} t`}
+                  note={`≈ ${Math.round(result.totalKg / 365)} kg par jour · selon l’incertitude des activités`}
+                  icon={Gauge}
+                />
+                <MetricCard
+                  label="Potentiel identifié"
+                  value={`−${formatTons(scenarios.reduce((s, x) => s + x.savingKg, 0))} t`}
+                  note="Leviers non cumulés mécaniquement"
+                  icon={Target}
+                />
+                <MetricCard
+                  label="Objectif long terme"
+                  value="2,0 t"
+                  note="Trajectoire neutralité 2050"
+                  icon={Leaf}
+                  accent
+                />
+              </div>
+            </details>
           </section>
 
           <section
@@ -1994,7 +1992,7 @@ export function Dashboard() {
                                   event.target.value as ActionPlanStatus,
                                 )
                               }
-                              className="mt-1.5 h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 text-sm font-semibold outline-none focus:border-[var(--accent)]"
+                              className="mt-1.5 h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 text-sm font-semibold focus-visible:border-[var(--accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--positive)]"
                             >
                               <option value="to_try">À essayer</option>
                               <option value="in_progress">En cours</option>
@@ -2014,7 +2012,7 @@ export function Dashboard() {
                                   startedAt: event.target.value || null,
                                 })
                               }
-                              className="mt-1.5 h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 text-sm outline-none focus:border-[var(--accent)]"
+                              className="mt-1.5 h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 text-sm focus-visible:border-[var(--accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--positive)]"
                             />
                           </label>
                           {item.completedAt && (
@@ -2075,7 +2073,7 @@ export function Dashboard() {
                   </Dialog.Trigger>
                   <Dialog.Portal>
                     <Dialog.Overlay className="fixed inset-0 z-[80] bg-black/45 backdrop-blur-sm" />
-                    <Dialog.Content className="fixed left-1/2 top-1/2 z-[90] w-[calc(100%-32px)] max-w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-[26px] border border-[var(--border)] bg-[var(--card)] p-6 shadow-2xl outline-none sm:p-8">
+                    <Dialog.Content className="fixed inset-x-4 top-1/2 z-[90] max-w-[520px] -translate-y-1/2 rounded-[26px] border border-[var(--border)] bg-[var(--card)] p-6 shadow-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--positive)] sm:inset-x-auto sm:left-1/2 sm:w-full sm:-translate-x-1/2 sm:p-8">
                       <div className="flex items-start justify-between gap-4">
                         <div>
                           <Dialog.Title className="text-2xl font-semibold tracking-[-.035em]">
@@ -2274,7 +2272,6 @@ export function Dashboard() {
           </section>
         </div>
       </main>
-      <CarbonCoach context={coachContext} />
     </div>
   );
 }

@@ -174,7 +174,7 @@ export function AccountPanel({
             required
             autoComplete="email"
             placeholder="vous@exemple.fr"
-            className="h-11 flex-1 rounded-full border border-[var(--border)] bg-[var(--background)] px-5 text-sm outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-soft)]"
+            className="h-11 min-w-0 flex-1 rounded-full border border-[var(--border)] bg-[var(--background)] px-5 text-sm focus-visible:border-[var(--accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--positive)]"
           />
           <Button
             type="submit"

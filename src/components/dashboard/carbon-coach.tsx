@@ -78,19 +78,19 @@ export function CarbonCoach({ context }: { context: CarbonCoachContext }) {
       <Dialog.Trigger asChild>
         <button
           type="button"
-          className="carbon-coach-trigger group fixed bottom-5 right-5 z-50 inline-flex min-h-12 items-center gap-3 rounded-full border border-[color-mix(in_srgb,var(--accent)_52%,var(--border))] bg-[var(--card)] px-4 text-sm font-semibold text-[var(--foreground)] shadow-[0_16px_50px_rgba(0,0,0,.28)] transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--positive)] sm:bottom-6 sm:right-6"
+          className="carbon-coach-trigger group fixed bottom-5 right-5 z-50 inline-flex min-h-12 items-center gap-3 rounded-full border border-[color-mix(in_srgb,var(--accent)_52%,var(--border))] bg-[var(--card)] px-4 text-sm font-semibold text-[var(--foreground)] shadow-[0_16px_50px_rgba(0,0,0,.28)] transition-transform hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-[var(--positive)] sm:bottom-6 sm:right-6"
           aria-label="Ouvrir le conseiller carbone"
         >
           <span className="grid size-8 place-items-center rounded-full bg-[var(--accent)] text-white shadow-[0_0_24px_var(--accent-soft)]">
             <Sparkles size={15} />
           </span>
-          <span>Conseiller carbone</span>
-          <span className="size-1.5 rounded-full bg-[var(--positive)] shadow-[0_0_10px_var(--positive)]" />
+          <span className="carbon-coach-trigger-label">Conseiller carbone</span>
+          <span className="carbon-coach-trigger-status size-1.5 rounded-full bg-[var(--positive)] shadow-[0_0_10px_var(--positive)]" />
         </button>
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-[2px] data-[state=open]:animate-in" />
-        <Dialog.Content className="carbon-coach-dialog fixed inset-x-3 bottom-3 z-[90] flex h-[min(720px,calc(100dvh-24px))] flex-col overflow-hidden rounded-[26px] border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] shadow-[0_30px_100px_rgba(0,0,0,.5)] outline-none sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[430px]">
+        <Dialog.Content className="carbon-coach-dialog fixed inset-x-3 bottom-3 z-[90] flex h-[min(720px,calc(100dvh-24px))] flex-col overflow-hidden rounded-[26px] border border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] shadow-[0_30px_100px_rgba(0,0,0,.5)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--positive)] sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-full sm:max-w-[430px]">
           <header className="flex items-center gap-3 border-b border-[var(--border)] px-4 py-4 sm:px-5">
             <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-[var(--accent-soft)] text-[var(--positive)]">
               <Bot size={19} />
@@ -238,7 +238,7 @@ export function CarbonCoach({ context }: { context: CarbonCoachContext }) {
                   }}
                   disabled={isBusy}
                   placeholder="Posez votre question…"
-                  className="block max-h-28 min-h-12 w-full resize-none bg-transparent px-2 py-1 text-[13px] leading-5 outline-none placeholder:text-[var(--muted-foreground)] disabled:opacity-60"
+                  className="block max-h-28 min-h-12 w-full resize-none rounded-xl bg-transparent px-2 py-1 text-[13px] leading-5 placeholder:text-[var(--muted-foreground)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--positive)] disabled:opacity-60"
                 />
                 <div className="flex items-center justify-between gap-3 px-1 pb-0.5">
                   <span className="inline-flex items-center gap-1.5 text-[9px] text-[var(--muted-foreground)]">
