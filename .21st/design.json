@@ -3,24 +3,13 @@
   "project": {
     "name": "carbon-os",
     "productType": null,
-    "stack": [
-      "nextjs",
-      "react",
-      "tailwind-v4"
-    ]
+    "stack": ["nextjs", "react", "tailwind-v4"]
   },
   "sources": {
-    "tokens": [
-      "src/app/globals.css"
-    ],
-    "components": [
-      "src/components/ui"
-    ],
+    "tokens": ["src/app/globals.css"],
+    "components": ["src/components/ui"],
     "assets": [],
-    "instructions": [
-      "AGENTS.md",
-      "CLAUDE.md"
-    ]
+    "instructions": ["AGENTS.md", "CLAUDE.md"]
   },
   "design": {
     "colorMode": "light-and-dark",
@@ -76,13 +65,8 @@
     "density": "unknown"
   },
   "components": {
-    "installed": [
-      "border-beam",
-      "button"
-    ],
-    "preferredPrimitives": [
-      "radix-ui"
-    ],
+    "installed": ["border-beam", "button", "slider-number-flow"],
+    "preferredPrimitives": ["radix-ui"],
     "patterns": []
   },
   "constraints": {
@@ -99,6 +83,17 @@
         "No purple accents",
         "Preserve clear action hierarchy",
         "Respect reduced-motion and touch input"
+      ]
+    },
+    {
+      "id": "carbon-number-flow-sliders",
+      "summary": "Use Radix-based range controls with animated Number Flow feedback, a solid Carbon green progress rail, and a tooltip that appears only during interaction.",
+      "source": "User direction and 21st component inspiration 1294",
+      "constraints": [
+        "Use Carbon OS color tokens",
+        "Keep the full-width control comfortable on touch screens",
+        "Expose the formatted value to assistive technology",
+        "Avoid permanent tooltip clutter"
       ]
     }
   ],
@@ -136,5 +131,5 @@
       "source": "package.json"
     }
   ],
-  "generatedAt": "2026-08-15T12:41:32.086Z"
+  "generatedAt": "2026-08-15T12:59:01.595Z"
 }

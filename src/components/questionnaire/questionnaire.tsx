@@ -30,6 +30,7 @@ import {
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
+import { AnimatedNumber, Slider } from "@/components/ui/slider-number-flow";
 import {
   defaultAnswers,
   GOAL_STORAGE_KEY,
@@ -223,6 +224,15 @@ function RangeField({
   onChange: (value: number) => void;
   hint?: string;
 }) {
+  const fractionDigits =
+    step < 1 ? Math.max(1, -Math.floor(Math.log10(step))) : 0;
+  const valueFormat = {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  };
+  const formatValue = (nextValue: number) =>
+    `${nextValue.toLocaleString("fr-FR", valueFormat)} ${unit}`;
+
   return (
     <div className="questionnaire-range rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 sm:p-6">
       <div className="flex items-end justify-between gap-4">
@@ -235,23 +245,26 @@ function RangeField({
           )}
         </div>
         <p className="number-tabular whitespace-nowrap text-2xl font-semibold tracking-[-.04em]">
-          {value.toLocaleString("fr-FR")}{" "}
+          <AnimatedNumber value={value} locales="fr-FR" format={valueFormat} />{" "}
           <span className="text-sm font-normal text-[var(--muted-foreground)]">
             {unit}
           </span>
         </p>
       </div>
-      <input
+      <Slider
         aria-label={label}
-        type="range"
         min={min}
         max={max}
         step={step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="mt-6 h-1.5 w-full cursor-pointer"
+        value={[value]}
+        valueFormat={valueFormat}
+        valueText={formatValue}
+        onValueChange={(nextValue) => {
+          if (nextValue[0] !== undefined) onChange(nextValue[0]);
+        }}
+        className="mt-4"
       />
-      <div className="mt-2 flex justify-between font-mono text-[10px] text-[var(--muted-foreground)]">
+      <div className="-mt-1 flex justify-between font-mono text-[10px] text-[var(--muted-foreground)]">
         <span>{min.toLocaleString("fr-FR")}</span>
         <span>{max.toLocaleString("fr-FR")}</span>
       </div>
