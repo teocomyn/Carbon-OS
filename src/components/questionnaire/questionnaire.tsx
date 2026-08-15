@@ -48,7 +48,6 @@ import {
   trackCarbonEvent,
   type QuestionnaireChapter,
 } from "@/lib/analytics";
-import { CARBON_SIGNAL_VIDEO } from "@/lib/media";
 import { parseQuestionnaireDraft } from "@/lib/questionnaire-draft";
 import type { AssessmentAnswers } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -303,6 +302,7 @@ export function Questionnaire() {
   const completed = useRef(false);
   const abandonmentTracked = useRef(false);
   const indexRef = useRef(0);
+  const stageRef = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
   const [direction, setDirection] = useState(1);
   const [answers, setAnswers] = useState<Answers>(defaultAnswers);
@@ -355,6 +355,7 @@ export function Questionnaire() {
   }, []);
   useEffect(() => {
     indexRef.current = index;
+    stageRef.current?.scrollTo({ top: 0, behavior: "auto" });
   }, [index]);
   useEffect(() => {
     const restoreTimer = window.setTimeout(() => {
@@ -491,7 +492,7 @@ export function Questionnaire() {
         );
       case 1:
         return (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="questionnaire-mobility-grid grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {(
               [
                 ["car", "Voiture", Car],
@@ -517,7 +518,7 @@ export function Questionnaire() {
         );
       case 2:
         return (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {(
               [
                 [
@@ -554,7 +555,7 @@ export function Questionnaire() {
         );
       case 3:
         return (
-          <div className="space-y-4">
+          <div className="questionnaire-range-grid space-y-4">
             {answers.carType === "none" ? (
               <div className="flex flex-col gap-5 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
                 <div className="flex items-start gap-4">
@@ -612,7 +613,7 @@ export function Questionnaire() {
         );
       case 4:
         return (
-          <div className="space-y-4">
+          <div className="questionnaire-range-grid space-y-4">
             <RangeField
               label="Allers-retours courts"
               value={answers.shortFlights}
@@ -635,7 +636,7 @@ export function Questionnaire() {
         );
       case 5:
         return (
-          <div className="space-y-4">
+          <div className="questionnaire-home-layout space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <OptionCard
                 compact
@@ -689,7 +690,7 @@ export function Questionnaire() {
       case 6:
         return (
           <div className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {(
                 [
                   ["gas", "Gaz", Waves],
@@ -779,7 +780,7 @@ export function Questionnaire() {
         );
       case 7:
         return (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {(
               [
                 ["vegan", "Vegan", "Aucun produit animal", Leaf],
@@ -811,7 +812,7 @@ export function Questionnaire() {
         );
       case 8:
         return (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {(
               [
                 [0, "Jamais"],
@@ -833,7 +834,7 @@ export function Questionnaire() {
         );
       case 9:
         return (
-          <div className="space-y-4">
+          <div className="questionnaire-purchases-layout space-y-4">
             <div className="grid gap-3 sm:grid-cols-3">
               {(
                 [
@@ -885,7 +886,7 @@ export function Questionnaire() {
         );
       case 10:
         return (
-          <div className="space-y-4">
+          <div className="questionnaire-digital-layout space-y-4">
             <RangeField
               label="Streaming & internet"
               value={answers.digitalHours}
@@ -932,12 +933,6 @@ export function Questionnaire() {
 
   return (
     <main className="process-shell questionnaire-shell min-h-screen bg-[var(--background)]">
-      <div className="questionnaire-ambient" aria-hidden="true">
-        <video autoPlay muted loop playsInline preload="metadata">
-          <source src={CARBON_SIGNAL_VIDEO} type="video/mp4" />
-        </video>
-        <div />
-      </div>
       <header className="questionnaire-header border-b border-[var(--border)]">
         <div className="questionnaire-header-inner mx-auto flex h-[72px] max-w-[1180px] items-center justify-between px-5 lg:px-8">
           <Logo />
@@ -988,7 +983,10 @@ export function Questionnaire() {
             <p>Données privées. Calcul local. Synchronisation facultative.</p>
           </div>
         </aside>
-        <div className="questionnaire-stage w-full py-10 sm:py-16 lg:py-20">
+        <div
+          ref={stageRef}
+          className="questionnaire-stage w-full py-10 sm:py-16 lg:py-20"
+        >
           <div className="mb-10 flex items-center justify-between">
             <div>
               <p className="eyebrow">
