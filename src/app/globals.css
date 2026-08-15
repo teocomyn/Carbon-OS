@@ -459,22 +459,6 @@ body.landing-menu-open {
 .landing-nav a.is-active {
   opacity: 1;
 }
-.landing-nav a.is-active::after,
-.landing-menu a.is-active::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: 4px;
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: #111;
-  box-shadow:
-    -5px 0 #111,
-    5px 0 #111;
-  transform: translateX(-50%);
-}
-
 .landing-account {
   display: grid;
   height: clamp(44px, 5.2vw, 48px);
@@ -844,10 +828,6 @@ body.landing-menu-open {
     opacity: 0;
     animation: landing-link-in 0.4s cubic-bezier(0.22, 1, 0.36, 1)
       calc(0.06s + var(--menu-index) * 0.045s) forwards;
-  }
-  .landing-menu > a.is-active::after {
-    left: 16px;
-    bottom: 7px;
   }
   .landing-menu-account {
     display: flex;
