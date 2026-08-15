@@ -16,7 +16,7 @@
 }
 
 .dark {
-  --background: #0b0c0f;
+  --background: #090e0f;
   --foreground: #f5f5f2;
   --card: #121419;
   --surface: #191c22;
@@ -34,6 +34,7 @@
   box-sizing: border-box;
 }
 html {
+  background: var(--background);
   scroll-behavior: smooth;
 }
 body {
@@ -758,7 +759,7 @@ body.landing-menu-open {
 
 /* Focused product experience — shared by the assessment, dashboard and account. */
 .process-shell {
-  --background: #080a0c;
+  --background: #090e0f;
   --foreground: #f4f4f2;
   --card: #111318;
   --surface: #191c22;
@@ -772,13 +773,7 @@ body.landing-menu-open {
   min-height: 100vh;
   min-height: 100dvh;
   overflow-x: hidden;
-  background:
-    radial-gradient(
-      circle at 82% 8%,
-      rgba(40, 111, 83, 0.08),
-      transparent 26rem
-    ),
-    var(--background);
+  background: var(--background);
   color: var(--foreground);
   color-scheme: dark;
 }
@@ -1220,19 +1215,7 @@ body.landing-menu-open {
 /* Carbon Signal — immersive product variants inspired by the landing system. */
 /* Questionnaire / Signal capture */
 .questionnaire-ambient {
-  position: fixed;
-  inset: 89px auto 0 0;
-  z-index: 0;
-  width: min(44vw, 650px);
-  overflow: hidden;
-  opacity: 0.42;
-  pointer-events: none;
-  mask-image: linear-gradient(
-    90deg,
-    black 0%,
-    rgba(0, 0, 0, 0.82) 52%,
-    transparent 100%
-  );
+  display: none;
 }
 
 .questionnaire-ambient video,
