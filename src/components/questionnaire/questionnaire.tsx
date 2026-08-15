@@ -957,30 +957,57 @@ export function Questionnaire() {
       </header>
       <div className="questionnaire-layout mx-auto grid min-h-[calc(100vh-75px)] max-w-[1240px] grid-rows-[1fr_auto] px-5 lg:px-8">
         <aside className="questionnaire-rail" aria-label="Contexte de l’étape">
-          <div>
+          <div className="questionnaire-rail-heading">
             <p className="questionnaire-system-label">
-              <Activity size={13} /> Votre bilan
+              <Activity size={13} /> Bilan en cours
             </p>
-            <p className="questionnaire-rail-number">
-              {String(chapterIndex + 1).padStart(2, "0")}
-            </p>
-            <p className="questionnaire-rail-category">{chapter.label}</p>
+            <div className="questionnaire-rail-chapter">
+              <p className="questionnaire-rail-kicker">Chapitre actuel</p>
+              <p className="questionnaire-rail-number">
+                {String(chapterIndex + 1).padStart(2, "0")}
+              </p>
+              <p className="questionnaire-rail-category">
+                <span aria-hidden="true" />
+                {chapter.label}
+              </p>
+            </div>
           </div>
-          <div className="questionnaire-step-map" aria-hidden="true">
-            {chapters.map((_, currentChapterIndex) => (
-              <span
-                key={currentChapterIndex}
-                className={
-                  currentChapterIndex <= chapterIndex
-                    ? "is-complete"
-                    : undefined
+          <ol
+            className="questionnaire-chapter-list"
+            aria-label="Progression du bilan"
+          >
+            {chapters.map((chapterItem, currentChapterIndex) => (
+              <li
+                key={chapterItem.label}
+                className={cn(
+                  currentChapterIndex < chapterIndex && "is-complete",
+                  currentChapterIndex === chapterIndex && "is-current",
+                )}
+                aria-current={
+                  currentChapterIndex === chapterIndex ? "step" : undefined
                 }
-              />
+              >
+                <span className="questionnaire-chapter-index">
+                  {currentChapterIndex < chapterIndex ? (
+                    <Check size={11} strokeWidth={2.5} />
+                  ) : (
+                    String(currentChapterIndex + 1).padStart(2, "0")
+                  )}
+                </span>
+                <span>{chapterItem.label}</span>
+                <span
+                  className="questionnaire-chapter-state"
+                  aria-hidden="true"
+                />
+              </li>
             ))}
-          </div>
+          </ol>
           <div className="questionnaire-rail-note">
             <ShieldCheck size={15} />
-            <p>Données privées. Calcul local. Synchronisation facultative.</p>
+            <div>
+              <p>Privé par défaut</p>
+              <p>Calcul local · compte facultatif</p>
+            </div>
           </div>
         </aside>
         <div
