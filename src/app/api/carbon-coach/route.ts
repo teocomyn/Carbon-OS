@@ -16,7 +16,10 @@ export const maxDuration = 30;
 
 const requestSchema = z
   .object({
+    id: z.string().max(128).optional(),
     messages: z.array(z.unknown()).min(1).max(20),
+    trigger: z.enum(["submit-message", "regenerate-message"]).optional(),
+    messageId: z.string().max(128).optional(),
     context: carbonCoachContextSchema,
   })
   .strict();
