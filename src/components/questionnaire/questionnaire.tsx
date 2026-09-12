@@ -28,6 +28,7 @@ import {
   Zap,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
+import { SkipLink } from "@/components/skip-link";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { AnimatedNumber, Slider } from "@/components/ui/slider-number-flow";
@@ -316,6 +317,8 @@ export function Questionnaire() {
   const abandonmentTracked = useRef(false);
   const indexRef = useRef(0);
   const stageRef = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const hasMovedStep = useRef(false);
   const [index, setIndex] = useState(0);
   const [direction, setDirection] = useState(1);
   const [answers, setAnswers] = useState<Answers>(defaultAnswers);
@@ -369,6 +372,14 @@ export function Questionnaire() {
   useEffect(() => {
     indexRef.current = index;
     stageRef.current?.scrollTo({ top: 0, behavior: "auto" });
+    if (!hasMovedStep.current) {
+      hasMovedStep.current = true;
+      return;
+    }
+    const focusTimer = window.setTimeout(() => {
+      titleRef.current?.focus();
+    }, 280);
+    return () => window.clearTimeout(focusTimer);
   }, [index]);
   useEffect(() => {
     const restoreTimer = window.setTimeout(() => {
@@ -377,8 +388,14 @@ export function Questionnaire() {
         steps.length,
       );
       if (draft) {
-        setAnswers(draft.answers);
-        setIndex(draft.index);
+        const veganDiet =
+          draft.answers.diet === "vegan" ||
+          draft.answers.diet === "vegetarian";
+        setAnswers({
+          ...draft.answers,
+          beefFrequency: veganDiet ? 0 : draft.answers.beefFrequency,
+        });
+        setIndex(draft.index === 8 && veganDiet ? 9 : draft.index);
         setTouchedSteps(draft.touchedSteps);
         setEstimatedSteps(draft.estimatedSteps);
         setResumed(draft.index > 0 || draft.touchedSteps.length > 0);
@@ -405,11 +422,21 @@ export function Questionnaire() {
     const resumedTimer = window.setTimeout(() => setResumed(false), 4_000);
     return () => window.clearTimeout(resumedTimer);
   }, [resumed]);
+  const skipsBeef =
+    answers.diet === "vegan" || answers.diet === "vegetarian";
+
   const next = () => {
     if (!stepWasAnswered) {
       setEstimatedSteps((current) =>
         current.includes(index) ? current : [...current, index],
       );
+    }
+    if (index === 7 && skipsBeef) {
+      setAnswers((current) => ({ ...current, beefFrequency: 0 }));
+      setDirection(1);
+      setIndex(9);
+      window.scrollTo(0, 0);
+      return;
     }
     if (index < steps.length - 1) {
       setDirection(1);
@@ -418,23 +445,27 @@ export function Questionnaire() {
     } else {
       setSaving(true);
       completed.current = true;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(answers));
+      const finalized = {
+        ...answers,
+        beefFrequency: skipsBeef ? (0 as const) : answers.beefFrequency,
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(finalized));
       localStorage.removeItem(QUESTIONNAIRE_DRAFT_KEY);
-      const result = calculateAssessment(answers);
+      const result = calculateAssessment(finalized);
       const storedGoal = Number(localStorage.getItem(GOAL_STORAGE_KEY));
       const previousHistory = readLocalHistory();
       addLocalSnapshot(
         createAssessmentSnapshot({
-          answers,
+          answers: finalized,
           result,
-          goalKg: storedGoal >= 2000 ? storedGoal : 5000,
+          goalKg: storedGoal >= 500 ? storedGoal : 5000,
           source: "questionnaire",
         }),
       );
       trackCarbonEvent({
         name: "Questionnaire terminé",
         data: {
-          mode: answers.mode === "quick" ? "rapide" : "précis",
+          mode: finalized.mode === "quick" ? "rapide" : "précis",
           dureeSecondes: roundedDurationSeconds(
             startedAt.current ?? Date.now(),
           ),
@@ -451,6 +482,12 @@ export function Questionnaire() {
     }
   };
   const back = () => {
+    if (index === 9 && skipsBeef) {
+      setDirection(-1);
+      setIndex(7);
+      window.scrollTo(0, 0);
+      return;
+    }
     if (index > 0) {
       setDirection(-1);
       setIndex(index - 1);
@@ -544,7 +581,7 @@ export function Questionnaire() {
                 [
                   "diesel",
                   "Diesel",
-                  "Voiture thermique moyenne en mode rapide.",
+                  "Facteur diesel distinct, cycle de vie France.",
                   Car,
                 ],
                 ["hybrid", "Hybride", "Rechargeable ou non rechargeable.", Zap],
@@ -622,6 +659,56 @@ export function Questionnaire() {
               unit="km/an"
               onChange={(v) => update("trainKm", v)}
             />
+            {answers.mode === "precise" && answers.trainKm > 0 && (
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+                <p className="mb-4 text-sm font-semibold">Type de train</p>
+                <Segment
+                  active={stepWasAnswered}
+                  value={answers.trainService}
+                  onChange={(v) => update("trainService", v)}
+                  options={[
+                    { value: "tgv", label: "Surtout TGV" },
+                    { value: "mixed", label: "Mixte" },
+                    { value: "regional", label: "Surtout TER" },
+                  ]}
+                />
+              </div>
+            )}
+            {answers.mode === "precise" &&
+              answers.primaryMobility === "motorcycle" && (
+                <RangeField
+                  label="Distance à moto"
+                  value={answers.motorcycleKm}
+                  min={0}
+                  max={30000}
+                  step={250}
+                  unit="km/an"
+                  onChange={(v) => update("motorcycleKm", v)}
+                />
+              )}
+            {answers.mode === "precise" &&
+              answers.primaryMobility === "transit" && (
+                <RangeField
+                  label="Transports publics"
+                  value={answers.transitKm}
+                  min={0}
+                  max={20000}
+                  step={200}
+                  unit="km/an"
+                  onChange={(v) => update("transitKm", v)}
+                />
+              )}
+            {answers.mode === "precise" && answers.primaryMobility === "bike" && (
+              <RangeField
+                label="Distance à vélo"
+                value={answers.bikeKm}
+                min={0}
+                max={15000}
+                step={100}
+                unit="km/an"
+                onChange={(v) => update("bikeKm", v)}
+              />
+            )}
           </div>
         );
       case 4:
@@ -817,7 +904,19 @@ export function Questionnaire() {
                 compact
                 key={value}
                 selected={stepWasAnswered && answers.diet === value}
-                onSelect={(v) => update("diet", v)}
+                onSelect={(v) => {
+                  setAnswers((current) => ({
+                    ...current,
+                    diet: v,
+                    beefFrequency:
+                      v === "vegan" || v === "vegetarian"
+                        ? 0
+                        : current.beefFrequency,
+                  }));
+                  setTouchedSteps((current) =>
+                    current.includes(index) ? current : [...current, index],
+                  );
+                }}
                 choice={{ value, label, description, icon }}
               />
             ))}
@@ -946,6 +1045,7 @@ export function Questionnaire() {
 
   return (
     <main className="process-shell questionnaire-shell min-h-screen bg-[var(--background)]">
+      <SkipLink href="#etape" />
       <header className="questionnaire-header border-b border-[var(--border)]">
         <div className="questionnaire-header-inner mx-auto flex h-[72px] max-w-[1180px] items-center justify-between px-5 lg:px-8">
           <Logo />
@@ -1046,7 +1146,12 @@ export function Questionnaire() {
               exit={{ opacity: 0, x: direction * -20 }}
               transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
             >
-              <h1 className="questionnaire-title balance text-3xl font-semibold leading-[1.08] tracking-[-.045em] sm:text-5xl">
+              <h1
+                id="etape"
+                ref={titleRef}
+                tabIndex={-1}
+                className="questionnaire-title balance text-3xl font-semibold leading-[1.08] tracking-[-.045em] outline-none sm:text-5xl"
+              >
                 {step.title}
               </h1>
               <p className="mt-4 max-w-[620px] text-sm leading-6 text-[var(--muted-foreground)] sm:text-base">

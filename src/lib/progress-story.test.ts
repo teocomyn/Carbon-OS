@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { defaultAnswers } from "@/data/defaults";
 import { calculateAssessment } from "@/lib/calculator";
 import { createAssessmentSnapshot } from "@/lib/history";
-import { buildProgressStory } from "@/lib/progress-story";
+import { buildProgressStory, isAssessmentDue } from "@/lib/progress-story";
 
 function snapshot(
   id: string,
@@ -51,5 +51,14 @@ describe("progress story", () => {
     expect(story?.primaryCategory?.category).toBe("housing");
     expect(story?.nextAssessmentStart.startsWith("2026-07-15")).toBe(true);
     expect(story?.nextAssessmentEnd.startsWith("2026-10-15")).toBe(true);
+  });
+
+  it("marks an assessment as due after three months", () => {
+    expect(isAssessmentDue("2026-01-15T10:00:00.000Z", Date.parse("2026-04-15T10:00:00.000Z"))).toBe(
+      true,
+    );
+    expect(isAssessmentDue("2026-01-15T10:00:00.000Z", Date.parse("2026-03-15T10:00:00.000Z"))).toBe(
+      false,
+    );
   });
 });

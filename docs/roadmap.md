@@ -13,19 +13,19 @@ Cette roadmap présente la direction produit actuelle. Elle ne constitue pas un 
 - Analytics respectueux de la vie privée.
 - Conseiller carbone à partir de données agrégées.
 - Interface responsive et thème clair/sombre.
+- Changelog des facteurs et recalcul de l’historique à la lecture.
+- Empty states réels : sans bilan, aucun profil d’exemple.
 
 ## Priorité suivante — consolider la bêta
 
-- Recueillir des retours structurés auprès des premiers testeurs.
-- Mesurer démarrage, complétion, durée, adoption d’une action et retour.
-- Corriger les incompréhensions avant d’ajouter des fonctionnalités.
-- Auditer l’accessibilité sur clavier, lecteur d’écran et contraste.
+- Lire le funnel Vercel (démarrage, complétion, action, retour, feedback).
+- Finaliser l’identité de l’éditeur, le domaine et le SMTP avant d’ouvrir les comptes.
+- Auditer l’accessibilité VoiceOver / TalkBack avant une diffusion large.
 - Tester les fusions locales/distantes et les scénarios de réseau dégradé.
 
 ## Ensuite — renforcer la confiance
 
-- Formaliser le versionnage et la mise à jour des facteurs d’émission.
-- Publier une méthodologie plus détaillée et un historique des changements.
+- Enrichir encore la méthodologie (périmètres alimentaires et internationaux).
 - Ajouter une observabilité d’erreurs sans données personnelles.
 - Tester la restauration des sauvegardes et documenter la réponse aux incidents.
 - Finaliser l’identité de l’éditeur, le domaine et les e-mails transactionnels.

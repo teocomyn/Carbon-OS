@@ -77,6 +77,12 @@ export function AccountPanel({
       )
     )
       return;
+    if (
+      !window.confirm(
+        "Dernière confirmation : cette action est irréversible. Continuer ?",
+      )
+    )
+      return;
     setPending(true);
     const response = await fetch("/api/account", { method: "DELETE" });
     if (response.ok) {

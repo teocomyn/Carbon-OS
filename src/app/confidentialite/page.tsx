@@ -33,9 +33,11 @@ export default function PrivacyPage() {
           utilisateur à ses propres lignes.
         </p>
         <p>
-          La région d’hébergement de la base et la durée de conservation devront
-          être consignées dans le registre de traitement avant l’ouverture large
-          de la bêta.
+          Sans compte, les données restent dans le navigateur jusqu’à
+          suppression manuelle ou vidage du stockage. Avec un compte, les
+          bilans synchronisés sont conservés jusqu’à suppression du compte ou
+          des données. La région d’hébergement exacte doit être une région
+          européenne et figurer ici dès que le projet de production est fixé.
         </p>
       </ContentSection>
       <ContentSection title="Hébergement et journaux techniques">
@@ -84,7 +86,7 @@ export default function PrivacyPage() {
           ) : (
             "à compléter avant l’activation publique des comptes"
           )}
-          . Dernière mise à jour : 12 août 2026.
+          . Dernière mise à jour : 12 septembre 2026.
         </p>
       </ContentSection>
     </PublicPage>

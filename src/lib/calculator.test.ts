@@ -54,6 +54,46 @@ describe("calculateAssessment", () => {
     expect(heating.estimated).toBe(false);
   });
 
+  it("uses a distinct diesel factor", () => {
+    const petrol = calculateAssessment({
+      ...defaultAnswers,
+      carType: "petrol",
+      carKm: 10_000,
+      occupancy: 1,
+    });
+    const diesel = calculateAssessment({
+      ...defaultAnswers,
+      carType: "diesel",
+      carKm: 10_000,
+      occupancy: 1,
+    });
+    const petrolCar = petrol.categories
+      .find((category) => category.category === "transport")!
+      .lines.find((item) => item.id === "car")!;
+    const dieselCar = diesel.categories
+      .find((category) => category.category === "transport")!
+      .lines.find((item) => item.id === "car")!;
+
+    expect(dieselCar.factorValue).toBeGreaterThan(petrolCar.factorValue);
+  });
+
+  it("uses declared motorcycle kilometers in precise mode", () => {
+    const result = calculateAssessment({
+      ...defaultAnswers,
+      mode: "precise",
+      primaryMobility: "motorcycle",
+      carType: "none",
+      carKm: 0,
+      motorcycleKm: 2_000,
+    });
+    const motorcycle = result.categories
+      .find((category) => category.category === "transport")!
+      .lines.find((item) => item.id === "motorcycle")!;
+
+    expect(motorcycle.activity).toBe(2000);
+    expect(motorcycle.estimated).toBe(false);
+  });
+
   it("does not apply the heat-pump COP twice to declared electricity", () => {
     const result = calculateAssessment({
       ...defaultAnswers,

@@ -1,25 +1,28 @@
 import type { EmissionFactor } from "@/lib/types";
 
-export const FACTOR_VERSION = "FR-2026.08-impactco2-ngc-4.14.3";
+export const FACTOR_VERSION = "FR-2026.09-impactco2-ngc-4.14.3";
 export const IMPACT_CO2_URL = "https://impactco2.fr/outils/api";
 export const NGC_URL = "https://nosgestesclimat.fr/documentation";
 
 const meta = {
   region: "FR" as const,
   year: 2026,
-  lastUpdated: "2026-08-12",
+  lastUpdated: "2026-09-12",
 };
 
 export const emissionFactors: EmissionFactor[] = [
   { id: "car-petrol", category: "transport", subcategory: "car", label: "Voiture essence moyenne, cycle de vie", value: 0.142253, unit: "kgCO2e/km", source: "Impact CO₂ / Base Empreinte ADEME", sourceUrl: IMPACT_CO2_URL, confidence: "high", ...meta },
-  { id: "car-diesel", category: "transport", subcategory: "car", label: "Voiture diesel moyenne, cycle de vie", value: 0.142253, unit: "kgCO2e/km", source: "Impact CO₂ / Base Empreinte ADEME", sourceUrl: IMPACT_CO2_URL, confidence: "medium", note: "Proxy voiture thermique moyenne en mode rapide.", ...meta },
+  { id: "car-diesel", category: "transport", subcategory: "car", label: "Voiture diesel moyenne, cycle de vie", value: 0.1486, unit: "kgCO2e/km", source: "Impact CO₂ / Base Empreinte ADEME", sourceUrl: IMPACT_CO2_URL, confidence: "medium", note: "Facteur diesel distinct de l’essence, cycle de vie France.", ...meta },
   { id: "car-hybrid", category: "transport", subcategory: "car", label: "Voiture hybride moyenne", value: 0.118, unit: "kgCO2e/km", source: "Nos Gestes Climat, modèle 4.14.3 / Base Empreinte", sourceUrl: NGC_URL, confidence: "medium", ...meta },
   { id: "car-electric", category: "transport", subcategory: "car", label: "Voiture électrique moyenne, cycle de vie France", value: 0.067365, unit: "kgCO2e/km", source: "Impact CO₂ / Base Empreinte ADEME", sourceUrl: IMPACT_CO2_URL, confidence: "high", ...meta },
   { id: "train-tgv", category: "transport", subcategory: "rail", label: "TGV, infrastructure incluse", value: 0.00293, unit: "kgCO2e/passager.km", source: "Impact CO₂ / Base Empreinte ADEME", sourceUrl: IMPACT_CO2_URL, confidence: "high", ...meta },
+  { id: "train-ter", category: "transport", subcategory: "rail", label: "Train régional, infrastructure incluse", value: 0.0278, unit: "kgCO2e/passager.km", source: "Impact CO₂ / Base Empreinte ADEME", sourceUrl: IMPACT_CO2_URL, confidence: "medium", ...meta },
+  { id: "train-mixed", category: "transport", subcategory: "rail", label: "Mix TGV / train régional", value: 0.0154, unit: "kgCO2e/passager.km", source: "Impact CO₂ / Base Empreinte ADEME", sourceUrl: IMPACT_CO2_URL, confidence: "medium", note: "Moyenne prudente 50 % TGV / 50 % TER lorsque le détail n’est pas connu.", ...meta },
   { id: "transit", category: "transport", subcategory: "transit", label: "Transport collectif urbain, proxy bus/métro", value: 0.045, unit: "kgCO2e/passager.km", source: "Impact CO₂ / Base Empreinte ADEME", sourceUrl: IMPACT_CO2_URL, confidence: "medium", note: "Moyenne prudente de modes urbains en l'absence de détail.", ...meta },
   { id: "motorcycle", category: "transport", subcategory: "motorcycle", label: "Moto thermique > 250 cm³", value: 0.14, unit: "kgCO2e/km", source: "Impact CO₂ / Base Empreinte ADEME", sourceUrl: IMPACT_CO2_URL, confidence: "high", ...meta },
   { id: "bike", category: "transport", subcategory: "active", label: "Vélo mécanique, fabrication incluse", value: 0.00017, unit: "kgCO2e/km", source: "Impact CO₂ / Base Empreinte ADEME", sourceUrl: IMPACT_CO2_URL, confidence: "high", ...meta },
   { id: "flight", category: "transport", subcategory: "aviation", label: "Avion trajet court, forçage radiatif et infrastructure inclus", value: 0.224572, unit: "kgCO2e/passager.km", source: "Impact CO₂ / Base Empreinte ADEME", sourceUrl: IMPACT_CO2_URL, confidence: "high", ...meta },
+  { id: "flight-long", category: "transport", subcategory: "aviation", label: "Avion long-courrier, forçage radiatif et infrastructure inclus", value: 0.152, unit: "kgCO2e/passager.km", source: "Impact CO₂ / Base Empreinte ADEME", sourceUrl: IMPACT_CO2_URL, confidence: "high", note: "Facteur au passager.km plus bas qu’un vol court, à distance plus élevée.", ...meta },
   { id: "electricity", category: "housing", subcategory: "energy", label: "Mix électrique français", value: 0.0519, unit: "kgCO2e/kWh", source: "Nos Gestes Climat 4.14.3 / Base Empreinte ADEME", sourceUrl: NGC_URL, confidence: "high", ...meta },
   { id: "gas", category: "housing", subcategory: "heating", label: "Gaz naturel, combustion et amont", value: 0.215, unit: "kgCO2e/kWh", source: "Nos Gestes Climat 4.14.3 / Base Empreinte ADEME", sourceUrl: NGC_URL, confidence: "high", ...meta },
   { id: "fuel", category: "housing", subcategory: "heating", label: "Fioul domestique", value: 0.324, unit: "kgCO2e/kWh", source: "Nos Gestes Climat 4.14.3 / Base Empreinte ADEME", sourceUrl: NGC_URL, confidence: "medium", note: "Conversion du facteur officiel par litre avec pouvoir calorifique conventionnel.", ...meta },

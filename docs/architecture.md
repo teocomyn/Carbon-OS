@@ -78,3 +78,4 @@ Le conseiller reçoit un contexte strictement validé : total estimé, niveau de
 4. Une ligne distante appartient toujours à l’utilisateur authentifié.
 5. Le plan actif reste limité à trois actions.
 6. Le conseiller IA ne remplace ni le moteur de calcul ni une expertise réglementaire.
+7. Sans bilan réel, `/resultat` et `/dashboard` n’affichent jamais un profil d’exemple.

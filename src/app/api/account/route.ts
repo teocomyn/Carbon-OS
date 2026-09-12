@@ -22,15 +22,6 @@ export async function DELETE(request: Request) {
   if (!user)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const { error: signOutError } = await supabase.auth.signOut({
-    scope: "global",
-  });
-  if (signOutError)
-    return NextResponse.json(
-      { error: "session_revoke_failed" },
-      { status: 500 },
-    );
-
   const { error } = await admin.auth.admin.deleteUser(user.id);
   if (error)
     return NextResponse.json(

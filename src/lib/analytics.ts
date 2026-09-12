@@ -27,6 +27,14 @@ type CarbonEvent =
   | {
       name: "Second bilan réalisé";
       data: { delai: "moins_30_jours" | "plus_30_jours" };
+    }
+  | {
+      name: "Retour produit";
+      data: {
+        clarte: "haute" | "moyenne" | "basse";
+        confiance: "haute" | "moyenne" | "basse";
+        suite: "action" | "plus_tard" | "incompris";
+      };
     };
 
 export function secondAssessmentDelay(firstAssessmentAt: string) {

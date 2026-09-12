@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { calculateAssessment } from "@/lib/calculator";
 import type { ActionPlanItem, AssessmentSnapshot } from "@/lib/types";
+import { isRateLimited, requestIp, retryAfterSeconds } from "@/lib/rate-limit";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { syncRequestSchema } from "@/lib/validation";
+
+const SYNC_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1_000;
+const SYNC_RATE_LIMIT_REQUESTS = 20;
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +88,25 @@ export async function GET() {
 export async function POST(request: Request) {
   if (!hasTrustedOrigin(request))
     return privateJson({ error: "invalid_origin" }, 403);
+  if (
+    isRateLimited(
+      "sync-write",
+      requestIp(request),
+      SYNC_RATE_LIMIT_REQUESTS,
+      SYNC_RATE_LIMIT_WINDOW_MS,
+    )
+  ) {
+    return NextResponse.json(
+      { error: "rate_limit" },
+      {
+        status: 429,
+        headers: {
+          "Cache-Control": "private, no-store",
+          "Retry-After": String(retryAfterSeconds(SYNC_RATE_LIMIT_WINDOW_MS)),
+        },
+      },
+    );
+  }
   const auth = await authenticatedClient();
   if (auth.error === "not_configured")
     return privateJson({ configured: false, authenticated: false }, 503);

@@ -12,55 +12,55 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { EmptyAssessment } from "@/components/empty-assessment";
+import { SkipLink } from "@/components/skip-link";
 import { Logo } from "@/components/logo";
+import { ProductFeedback } from "@/components/result/product-feedback";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { defaultAnswers, STORAGE_KEY } from "@/data/defaults";
-import { calculateAssessment } from "@/lib/calculator";
+import { STORAGE_KEY } from "@/data/defaults";
+import { parseStoredAnswers } from "@/lib/answers";
+import { FRANCE_AVERAGE_KG, FRANCE_AVERAGE_SOURCE } from "@/lib/benchmark";
+import { calculateAssessment, countAssessmentLines } from "@/lib/calculator";
 import { trackCarbonEvent } from "@/lib/analytics";
 import { buildScenarios } from "@/lib/recommendations";
 import type { AssessmentAnswers } from "@/lib/types";
 import { formatKg, formatTons } from "@/lib/utils";
-import { assessmentAnswersSchema } from "@/lib/validation";
-
-const FRANCE_AVERAGE_KG = 8_200;
 
 export function AssessmentResult() {
-  const [answers, setAnswers] = useState<AssessmentAnswers>(defaultAnswers);
+  const [answers, setAnswers] = useState<AssessmentAnswers | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    trackCarbonEvent({ name: "Résultat consulté" });
-  }, []);
-
-  useEffect(() => {
     const hydrationTimer = window.setTimeout(() => {
-      try {
-        const parsed = assessmentAnswersSchema.safeParse(
-          JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null"),
-        );
-        if (parsed.success) setAnswers(parsed.data);
-      } catch {}
+      const stored = parseStoredAnswers(localStorage.getItem(STORAGE_KEY));
+      setAnswers(stored);
       setReady(true);
+      if (stored) trackCarbonEvent({ name: "Résultat consulté" });
     }, 0);
     return () => window.clearTimeout(hydrationTimer);
   }, []);
 
-  const result = useMemo(() => calculateAssessment(answers), [answers]);
-  const scenarios = useMemo(() => buildScenarios(answers), [answers]);
-  const topCategories = [...result.categories]
-    .sort((left, right) => right.kgCo2e - left.kgCo2e)
-    .slice(0, 3);
-  const topAction = scenarios[0];
-  const difference = Math.round(
-    ((FRANCE_AVERAGE_KG - result.totalKg) / FRANCE_AVERAGE_KG) * 100,
+  const result = useMemo(
+    () => (answers ? calculateAssessment(answers) : null),
+    [answers],
   );
-  const confidenceLabel =
-    result.confidenceScore >= 80
-      ? "élevée"
-      : result.confidenceScore >= 60
-        ? "moyenne"
-        : "à affiner";
+  const scenarios = useMemo(
+    () => (answers ? buildScenarios(answers) : []),
+    [answers],
+  );
+  const topCategories = result
+    ? [...result.categories]
+        .sort((left, right) => right.kgCo2e - left.kgCo2e)
+        .slice(0, 3)
+    : [];
+  const topAction = scenarios[0];
+  const difference = result
+    ? Math.round(
+        ((FRANCE_AVERAGE_KG - result.totalKg) / FRANCE_AVERAGE_KG) * 100,
+      )
+    : 0;
+  const lineCounts = result ? countAssessmentLines(result) : null;
 
   if (!ready) {
     return (
@@ -73,8 +73,13 @@ export function AssessmentResult() {
     );
   }
 
+  if (!answers || !result) {
+    return <EmptyAssessment />;
+  }
+
   return (
     <main className="process-shell result-shell min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+      <SkipLink href="#resultat" />
       <header className="border-b border-[var(--border)]">
         <div className="mx-auto flex h-[72px] max-w-[1180px] items-center justify-between px-5 lg:px-8">
           <Logo />
@@ -96,7 +101,10 @@ export function AssessmentResult() {
           className="text-center"
         >
           <p className="eyebrow">Votre résultat essentiel</p>
-          <h1 className="mt-5 text-3xl font-semibold tracking-[-.05em] sm:text-5xl">
+          <h1
+            id="resultat"
+            className="mt-5 text-3xl font-semibold tracking-[-.05em] sm:text-5xl"
+          >
             Votre empreinte est estimée à
           </h1>
           <p className="number-tabular mt-7 text-[clamp(5.5rem,18vw,10rem)] font-semibold leading-none tracking-[-.09em] text-[var(--accent)]">
@@ -108,12 +116,22 @@ export function AssessmentResult() {
           <div className="mt-7 flex flex-wrap justify-center gap-2 text-xs">
             <span className="rounded-full bg-[var(--positive-soft)] px-3 py-2 font-medium text-[var(--positive)]">
               {difference >= 0
-                ? `${difference} % sous la moyenne française`
-                : `${Math.abs(difference)} % au-dessus de la moyenne française`}
+                ? `${difference} % sous ~9 t / hab. en France`
+                : `${Math.abs(difference)} % au-dessus de ~9 t / hab. en France`}
             </span>
-            <span className="rounded-full bg-[var(--surface)] px-3 py-2 text-[var(--muted-foreground)]">
-              Fiabilité {confidenceLabel}
-            </span>
+            {lineCounts && (
+              <span className="rounded-full bg-[var(--surface)] px-3 py-2 text-[var(--muted-foreground)]">
+                {lineCounts.estimated} poste
+                {lineCounts.estimated > 1 ? "s" : ""} estimé
+                {lineCounts.estimated > 1 ? "s" : ""} sur {lineCounts.total}
+              </span>
+            )}
+            <Link
+              href={{ pathname: "/methodologie", hash: "facteurs" }}
+              className="rounded-full bg-[var(--surface)] px-3 py-2 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+            >
+              Facteurs {result.factorVersion}
+            </Link>
           </div>
         </motion.section>
 
@@ -204,6 +222,8 @@ export function AssessmentResult() {
           </p>
         </section>
 
+        <ProductFeedback />
+
         <details className="group mx-auto mt-12 max-w-[760px] rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold">
             Comment ce résultat est-il calculé ?
@@ -223,8 +243,9 @@ export function AssessmentResult() {
               {formatTons(result.highKg)} t CO₂e/an. Votre résultat reste une
               estimation, pas un bilan carbone réglementaire.
             </p>
+            <p>{FRANCE_AVERAGE_SOURCE}</p>
             <Link
-              href="/methodologie"
+              href={{ pathname: "/methodologie", hash: "facteurs" }}
               className="inline-flex items-center gap-2 font-semibold text-[var(--accent)] hover:underline"
             >
               Lire la méthodologie <Leaf size={14} />

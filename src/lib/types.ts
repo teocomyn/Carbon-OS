@@ -26,6 +26,10 @@ export interface AssessmentAnswers {
   carKm: number;
   occupancy: number;
   trainKm: number;
+  trainService: "tgv" | "mixed" | "regional";
+  motorcycleKm: number;
+  transitKm: number;
+  bikeKm: number;
   shortFlights: number;
   longFlights: number;
   homeType: "apartment" | "house";
