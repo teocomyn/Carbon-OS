@@ -13,6 +13,7 @@ import {
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { EmptyAssessment } from "@/components/empty-assessment";
+import { PageStatus } from "@/components/page-status";
 import { SkipLink } from "@/components/skip-link";
 import { Logo } from "@/components/logo";
 import { ProductFeedback } from "@/components/result/product-feedback";
@@ -63,14 +64,7 @@ export function AssessmentResult() {
   const lineCounts = result ? countAssessmentLines(result) : null;
 
   if (!ready) {
-    return (
-      <main className="grid min-h-screen place-items-center bg-[var(--background)]">
-        <div className="text-center">
-          <Logo />
-          <div className="mx-auto mt-8 size-6 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
-        </div>
-      </main>
-    );
+    return <PageStatus label="Chargement du résultat" />;
   }
 
   if (!answers || !result) {

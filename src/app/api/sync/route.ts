@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { calculateAssessment } from "@/lib/calculator";
 import type { ActionPlanItem, AssessmentSnapshot } from "@/lib/types";
-import { isRateLimited, requestIp, retryAfterSeconds } from "@/lib/rate-limit";
+import {
+  hasTrustedOrigin,
+  isRateLimited,
+  requestIp,
+  retryAfterSeconds,
+} from "@/lib/rate-limit";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { syncRequestSchema } from "@/lib/validation";
 
@@ -15,11 +20,6 @@ function privateJson(body: unknown, status = 200) {
     status,
     headers: { "Cache-Control": "private, no-store" },
   });
-}
-
-function hasTrustedOrigin(request: Request) {
-  const origin = request.headers.get("origin");
-  return origin === new URL(request.url).origin;
 }
 
 async function authenticatedClient() {
@@ -171,6 +171,25 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   if (!hasTrustedOrigin(request))
     return privateJson({ error: "invalid_origin" }, 403);
+  if (
+    isRateLimited(
+      "sync-delete",
+      requestIp(request),
+      SYNC_RATE_LIMIT_REQUESTS,
+      SYNC_RATE_LIMIT_WINDOW_MS,
+    )
+  ) {
+    return NextResponse.json(
+      { error: "rate_limit" },
+      {
+        status: 429,
+        headers: {
+          "Cache-Control": "private, no-store",
+          "Retry-After": String(retryAfterSeconds(SYNC_RATE_LIMIT_WINDOW_MS)),
+        },
+      },
+    );
+  }
   const auth = await authenticatedClient();
   if (auth.error === "not_configured")
     return privateJson({ error: auth.error }, 503);

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { HeroVisual } from "@/components/landing/hero-visual";
 import { SkipLink } from "@/components/skip-link";
+import { emissionFactors } from "@/data/emission-factors";
 import { CARBON_SIGNAL_VIDEO } from "@/lib/media";
 import { trackCarbonEvent } from "@/lib/analytics";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -47,7 +48,7 @@ const stats = [
   },
   {
     symbol: "#",
-    target: 30,
+    target: emissionFactors.length,
     suffix: "",
     decimals: 0,
     label: "Facteurs versionnés",
@@ -98,12 +99,14 @@ function CountUp({
     };
   }, [delay, target]);
 
+  const formatted =
+    decimals > 0
+      ? value.toFixed(decimals).replace(".", ",")
+      : String(Math.round(value));
+
   return (
     <>
-      {value.toLocaleString("fr-FR", {
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals,
-      })}
+      {formatted}
       {suffix}
     </>
   );
@@ -111,12 +114,27 @@ function CountUp({
 
 export function LandingPage() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [accountDeleted, setAccountDeleted] = useState(false);
   const accountLabel = isSupabaseConfigured()
     ? "Mon compte"
     : "Synchronisation";
 
   useEffect(() => {
     trackCarbonEvent({ name: "Accueil consulté" });
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("compte") === "supprime") {
+      sessionStorage.setItem("carbon-os-account-deleted", "1");
+      window.history.replaceState(null, "", "/");
+    }
+    if (sessionStorage.getItem("carbon-os-account-deleted") !== "1") return;
+    const noticeTimer = window.setTimeout(() => {
+      setAccountDeleted(true);
+      sessionStorage.removeItem("carbon-os-account-deleted");
+    }, 0);
+    return () => window.clearTimeout(noticeTimer);
   }, []);
 
   useEffect(() => {
@@ -139,6 +157,15 @@ export function LandingPage() {
   return (
     <>
     <SkipLink href="#landing-title" />
+    {accountDeleted && (
+      <p
+        className="fixed left-1/2 top-4 z-[80] -translate-x-1/2 rounded-full border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-xs font-semibold text-[var(--foreground)] shadow-lg"
+        role="status"
+        aria-live="polite"
+      >
+        Compte supprimé. Vos données locales restent sur cet appareil.
+      </p>
+    )}
     <main className="landing-shell">
       <div className="landing-media" aria-hidden="true">
         <video autoPlay muted loop playsInline preload="metadata">

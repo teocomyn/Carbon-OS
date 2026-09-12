@@ -17,7 +17,7 @@ export function EmptyAssessment({
       id="overview"
       className="process-shell grid min-h-screen place-items-center bg-[var(--background)] px-5 text-[var(--foreground)]"
     >
-      <SkipLink href="#overview" />
+      <SkipLink href="#commencer" />
       <div className="w-full max-w-[560px] text-center">
         <div className="mb-10 flex items-center justify-center gap-3">
           <Logo />
@@ -32,7 +32,7 @@ export function EmptyAssessment({
         </p>
         <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
           <Button asChild variant="accent" size="lg">
-            <Link href="/questionnaire">
+            <Link id="commencer" href="/questionnaire">
               Faire mon bilan · 4 min <ArrowRight size={16} />
             </Link>
           </Button>

@@ -86,7 +86,7 @@ export function HeroVisual() {
         </motion.div>
       ))}
       <div className="absolute bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-[11px] text-[var(--muted-foreground)] shadow-sm">
-        Survolez une source pour comprendre son impact
+        Exemple illustratif · sources publiques versionnées
       </div>
     </div>
   );

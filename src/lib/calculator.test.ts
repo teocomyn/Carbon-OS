@@ -94,6 +94,55 @@ describe("calculateAssessment", () => {
     expect(motorcycle.estimated).toBe(false);
   });
 
+  it("uses a lower long-haul factor than a short flight", () => {
+    const short = calculateAssessment({
+      ...defaultAnswers,
+      carType: "none",
+      carKm: 0,
+      primaryMobility: "train",
+      shortFlights: 1,
+      longFlights: 0,
+    });
+    const longHaul = calculateAssessment({
+      ...defaultAnswers,
+      carType: "none",
+      carKm: 0,
+      primaryMobility: "train",
+      shortFlights: 0,
+      longFlights: 1,
+    });
+    const shortLine = short.categories
+      .find((category) => category.category === "transport")!
+      .lines.find((item) => item.id === "short-flights")!;
+    const longLine = longHaul.categories
+      .find((category) => category.category === "transport")!
+      .lines.find((item) => item.id === "long-flights")!;
+
+    expect(longLine.factorValue).toBeLessThan(shortLine.factorValue);
+    expect(longLine.kgCo2e).toBeGreaterThan(shortLine.kgCo2e);
+  });
+
+  it("uses a higher regional train factor than TGV", () => {
+    const tgv = calculateAssessment({
+      ...defaultAnswers,
+      trainKm: 2000,
+      trainService: "tgv",
+    });
+    const regional = calculateAssessment({
+      ...defaultAnswers,
+      trainKm: 2000,
+      trainService: "regional",
+    });
+    const trainLine = (result: typeof tgv) =>
+      result.categories
+        .find((category) => category.category === "transport")!
+        .lines.find((item) => item.id === "train")!;
+
+    expect(trainLine(regional).factorValue).toBeGreaterThan(
+      trainLine(tgv).factorValue,
+    );
+  });
+
   it("does not apply the heat-pump COP twice to declared electricity", () => {
     const result = calculateAssessment({
       ...defaultAnswers,

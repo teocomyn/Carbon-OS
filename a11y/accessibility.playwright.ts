@@ -82,3 +82,55 @@ test("le dashboard ne présente qu’une action principale", async ({ page }) =>
   await page.locator("#overview").waitFor();
   await expect(page.locator(".carbon-button--accent:visible")).toHaveCount(1);
 });
+
+test("le résultat vide n’invente pas de bilan", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/resultat", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(
+    "n’est pas encore là",
+  );
+  await expect(page.locator("#commencer")).toBeVisible();
+});
+
+test("un bilan stocké ouvre le résultat réel", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "carbon-os-assessment-v1",
+      JSON.stringify({
+        mode: "quick",
+        primaryMobility: "car",
+        carType: "petrol",
+        carKm: 10000,
+        occupancy: 1.4,
+        trainKm: 1200,
+        trainService: "mixed",
+        motorcycleKm: 5000,
+        transitKm: 4000,
+        bikeKm: 2500,
+        shortFlights: 1,
+        longFlights: 0,
+        homeType: "apartment",
+        surface: 65,
+        occupants: 2,
+        insulation: "average",
+        heating: "gas",
+        heatingKwh: null,
+        electricityKwh: null,
+        renewableElectricity: false,
+        diet: "flexitarian",
+        beefFrequency: 1.5,
+        foodWaste: "medium",
+        purchaseProfile: "standard",
+        secondHand: "sometimes",
+        deviceYears: 3,
+        digitalHours: 3,
+        servicesProfile: "standard",
+      }),
+    );
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/resultat", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(
+    "Votre empreinte est estimée à",
+  );
+});

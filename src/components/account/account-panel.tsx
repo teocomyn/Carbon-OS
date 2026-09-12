@@ -150,7 +150,11 @@ export function AccountPanel({
           </Button>
         </div>
         {message && (
-          <p className="mt-4 text-xs text-[var(--muted-foreground)]">
+          <p
+            className="mt-4 text-xs text-[var(--muted-foreground)]"
+            role="status"
+            aria-live="polite"
+          >
             {message}
           </p>
         )}

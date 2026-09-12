@@ -11,7 +11,12 @@ import {
   buildCarbonCoachInstructions,
   carbonCoachContextSchema,
 } from "@/lib/carbon-coach";
-import { isRateLimited, requestIp, retryAfterSeconds } from "@/lib/rate-limit";
+import {
+  hasTrustedOrigin,
+  isRateLimited,
+  requestIp,
+  retryAfterSeconds,
+} from "@/lib/rate-limit";
 
 export const maxDuration = 30;
 
@@ -47,8 +52,7 @@ function sanitizeMessages(messages: UIMessage[]) {
 }
 
 export async function POST(request: Request) {
-  const origin = request.headers.get("origin");
-  if (!origin || new URL(origin).host !== new URL(request.url).host) {
+  if (!hasTrustedOrigin(request)) {
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
   if (

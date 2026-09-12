@@ -1,6 +1,8 @@
 # Carbon OS — handoff
 
-Branche : `main` (travail non commité).
+Branche : `feat/harden-assessment-engine` — PR https://github.com/teocomyn/Carbon-OS/pull/18
+
+`main` est protégé : les changements passent par une pull request.
 
 ## Fait
 

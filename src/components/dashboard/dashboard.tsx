@@ -53,6 +53,7 @@ import { CarbonCoach } from "@/components/dashboard/carbon-coach";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { EmptyAssessment } from "@/components/empty-assessment";
+import { PageStatus } from "@/components/page-status";
 import { SkipLink } from "@/components/skip-link";
 import {
   ACTION_PLAN_STORAGE_KEY,
@@ -689,6 +690,12 @@ export function Dashboard() {
       current.includes(id) ? current.filter((x) => x !== id) : [...current, id],
     );
   const reset = () => {
+    if (
+      !window.confirm(
+        "Réinitialiser le bilan affiché sur cet appareil ? L’historique n’est pas effacé.",
+      )
+    )
+      return;
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(ACTION_PLAN_STORAGE_KEY);
     setAnswers(defaultAnswers);
@@ -930,15 +937,7 @@ export function Dashboard() {
     }
   };
 
-  if (!hydrated)
-    return (
-      <main className="grid min-h-screen place-items-center">
-        <div className="text-center">
-          <Logo />
-          <div className="mx-auto mt-8 size-6 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
-        </div>
-      </main>
-    );
+  if (!hydrated) return <PageStatus label="Chargement du tableau de bord" />;
   if (!hasAssessment) {
     return (
       <EmptyAssessment

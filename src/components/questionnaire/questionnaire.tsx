@@ -395,7 +395,14 @@ export function Questionnaire() {
           ...draft.answers,
           beefFrequency: veganDiet ? 0 : draft.answers.beefFrequency,
         });
-        setIndex(draft.index === 8 && veganDiet ? 9 : draft.index);
+        const skipsCarDraft = draft.answers.primaryMobility !== "car";
+        const restoredIndex =
+          draft.index === 8 && veganDiet
+            ? 9
+            : draft.index === 2 && skipsCarDraft
+              ? 3
+              : draft.index;
+        setIndex(restoredIndex);
         setTouchedSteps(draft.touchedSteps);
         setEstimatedSteps(draft.estimatedSteps);
         setResumed(draft.index > 0 || draft.touchedSteps.length > 0);
@@ -424,12 +431,24 @@ export function Questionnaire() {
   }, [resumed]);
   const skipsBeef =
     answers.diet === "vegan" || answers.diet === "vegetarian";
+  const skipsCar = answers.primaryMobility !== "car";
 
   const next = () => {
     if (!stepWasAnswered) {
       setEstimatedSteps((current) =>
         current.includes(index) ? current : [...current, index],
       );
+    }
+    if (index === 1 && skipsCar) {
+      setAnswers((current) => ({
+        ...current,
+        carType: "none",
+        carKm: 0,
+      }));
+      setDirection(1);
+      setIndex(3);
+      window.scrollTo(0, 0);
+      return;
     }
     if (index === 7 && skipsBeef) {
       setAnswers((current) => ({ ...current, beefFrequency: 0 }));
@@ -482,6 +501,12 @@ export function Questionnaire() {
     }
   };
   const back = () => {
+    if (index === 3 && skipsCar) {
+      setDirection(-1);
+      setIndex(1);
+      window.scrollTo(0, 0);
+      return;
+    }
     if (index === 9 && skipsBeef) {
       setDirection(-1);
       setIndex(7);
@@ -559,7 +584,10 @@ export function Questionnaire() {
                 selected={stepWasAnswered && answers.primaryMobility === value}
                 onSelect={(v) => {
                   update("primaryMobility", v);
-                  if (v !== "car") update("carType", "none");
+                  if (v !== "car") {
+                    update("carType", "none");
+                    update("carKm", 0);
+                  }
                 }}
                 choice={{ value, label, icon }}
               />
