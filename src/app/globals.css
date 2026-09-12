@@ -964,7 +964,7 @@ body.landing-menu-open {
   padding: 22px;
 }
 .landing-follow-steps article > p:first-child {
-  color: var(--accent);
+  color: var(--positive);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
