@@ -633,14 +633,14 @@ export function Questionnaire() {
         );
       case 3:
         return (
-          <div className="questionnaire-range-grid space-y-4">
+          <div className="space-y-4">
             {answers.carType === "none" ? (
-              <div className="flex flex-col gap-5 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-                <div className="flex items-start gap-4">
+              <div className="flex flex-col items-start gap-4 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+                <div className="flex min-w-0 items-start gap-4">
                   <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[var(--surface)] text-[var(--muted-foreground)]">
                     <Car size={20} strokeWidth={1.8} />
                   </span>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm font-semibold">
                       Aucune distance en voiture
                     </p>
@@ -650,12 +650,16 @@ export function Questionnaire() {
                     </p>
                   </div>
                 </div>
-                <Button variant="secondary" onClick={back}>
+                <Button
+                  variant="secondary"
+                  className="shrink-0"
+                  onClick={back}
+                >
                   Modifier ma réponse
                 </Button>
               </div>
             ) : (
-              <>
+              <div className="questionnaire-range-grid">
                 <RangeField
                   label="Distance en voiture"
                   value={answers.carKm}
@@ -676,8 +680,9 @@ export function Questionnaire() {
                   onChange={(v) => update("occupancy", v)}
                   hint="Vous compris, sur l’ensemble des trajets."
                 />
-              </>
+              </div>
             )}
+            <div className="questionnaire-range-grid">
             <RangeField
               label="Distance en train"
               value={answers.trainKm}
@@ -737,6 +742,7 @@ export function Questionnaire() {
                 onChange={(v) => update("bikeKm", v)}
               />
             )}
+            </div>
           </div>
         );
       case 4:
