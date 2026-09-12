@@ -8,16 +8,19 @@ function clampDietMeat(answers: AssessmentAnswers): AssessmentAnswers {
   return { ...answers, beefFrequency: 0 };
 }
 
-export function normalizeAnswers(value: unknown): AssessmentAnswers {
+export function tryNormalizeAnswers(value: unknown): AssessmentAnswers | null {
   const direct = assessmentAnswersSchema.safeParse(value);
   if (direct.success) return clampDietMeat(direct.data);
+  if (!value || typeof value !== "object") return null;
+  const parsed = assessmentAnswersSchema.safeParse({
+    ...defaultAnswers,
+    ...value,
+  });
+  return parsed.success ? clampDietMeat(parsed.data) : null;
+}
 
-  const merged =
-    value && typeof value === "object"
-      ? { ...defaultAnswers, ...value }
-      : defaultAnswers;
-  const parsed = assessmentAnswersSchema.safeParse(merged);
-  return clampDietMeat(parsed.success ? parsed.data : defaultAnswers);
+export function normalizeAnswers(value: unknown): AssessmentAnswers {
+  return tryNormalizeAnswers(value) ?? defaultAnswers;
 }
 
 export function parseStoredAnswers(serialized: string | null) {
@@ -32,9 +35,9 @@ export function parseStoredAnswers(serialized: string | null) {
 
 export function readStoredAnswers() {
   if (typeof window === "undefined") return null;
-  return parseStoredAnswers(localStorage.getItem(STORAGE_KEY));
-}
-
-export function hasLocalAssessment() {
-  return Boolean(readStoredAnswers());
+  try {
+    return parseStoredAnswers(localStorage.getItem(STORAGE_KEY));
+  } catch {
+    return null;
+  }
 }

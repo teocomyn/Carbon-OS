@@ -22,7 +22,8 @@ export function PublicPage({
       <SiteHeader />
       <article
         id="contenu"
-        className="mx-auto max-w-[900px] px-5 pb-24 pt-32 sm:pt-40 lg:px-8"
+        tabIndex={-1}
+        className="mx-auto max-w-[900px] px-5 pb-24 pt-32 sm:pt-40 lg:px-8 outline-none"
       >
         <Link
           href="/"

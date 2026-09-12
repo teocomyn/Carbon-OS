@@ -62,7 +62,8 @@ import {
   STORAGE_KEY,
 } from "@/data/defaults";
 import { emissionFactors, factorById } from "@/data/emission-factors";
-import { normalizeAnswers, readStoredAnswers } from "@/lib/answers";
+import { readStoredAnswers, tryNormalizeAnswers } from "@/lib/answers";
+import { PRODUCT_FEEDBACK_KEY } from "@/lib/product-feedback";
 import { FRANCE_AVERAGE_KG, FRANCE_AVERAGE_SOURCE } from "@/lib/benchmark";
 import { calculateAssessment, countAssessmentLines } from "@/lib/calculator";
 import {
@@ -532,7 +533,7 @@ export function Dashboard() {
           }),
         );
       }
-      if (loadedHistory.length) setHasAssessment(true);
+      if (storedAnswers && loadedHistory.length) setHasAssessment(true);
       loadedHistory = writeLocalHistory(loadedHistory);
       setHistory(loadedHistory);
       setHydrated(true);
@@ -548,13 +549,17 @@ export function Dashboard() {
           );
           setHistory(merged);
           if (merged.length) {
-            setHasAssessment(true);
             const latest = merged.at(-1);
             if (latest && !storedAnswers) {
-              const cloudAnswers = normalizeAnswers(latest.answers);
-              setAnswers(cloudAnswers);
-              localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudAnswers));
-              loadedAnswers = cloudAnswers;
+              const cloudAnswers = tryNormalizeAnswers(latest.answers);
+              if (cloudAnswers) {
+                setHasAssessment(true);
+                setAnswers(cloudAnswers);
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudAnswers));
+                loadedAnswers = cloudAnswers;
+              }
+            } else if (storedAnswers) {
+              setHasAssessment(true);
             }
           }
           const mergedPlan = enrichActionPlan(
@@ -715,6 +720,7 @@ export function Dashboard() {
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(GOAL_STORAGE_KEY);
     localStorage.removeItem(ACTION_PLAN_STORAGE_KEY);
+    localStorage.removeItem(PRODUCT_FEEDBACK_KEY);
     clearLocalHistory();
     setAnswers(defaultAnswers);
     setGoalKg(5000);

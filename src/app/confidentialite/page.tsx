@@ -62,8 +62,9 @@ export default function PrivacyPage() {
           étapes générales du parcours, sans cookie publicitaire. Les paramètres
           des adresses web sont supprimés avant l’envoi. Les événements peuvent
           indiquer qu’un questionnaire a commencé ou été terminé, son mode, sa
-          durée arrondie, le chapitre d’un abandon, ou qu’une action, un objectif
-          ou un compte a été activé.
+          durée arrondie, le chapitre d’un abandon, qu’une action, un objectif
+          ou un compte a été activé, ou un retour produit limité à trois choix
+          catégoriels (clarté, confiance, suite).
         </p>
         <p>
           Les réponses détaillées, le régime alimentaire, les consommations

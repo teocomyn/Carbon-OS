@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { normalizeAnswers, parseStoredAnswers } from "@/lib/answers";
+import {
+  normalizeAnswers,
+  parseStoredAnswers,
+  tryNormalizeAnswers,
+} from "@/lib/answers";
 
 describe("normalizeAnswers", () => {
   it("fills missing mobility fields from older payloads", () => {
@@ -33,6 +37,11 @@ describe("normalizeAnswers", () => {
     expect(answers.motorcycleKm).toBe(5000);
     expect(answers.trainService).toBe("mixed");
     expect(answers.beefFrequency).toBe(0);
+  });
+
+  it("rejects unreadable or invalid objects instead of inventing a bilan", () => {
+    expect(tryNormalizeAnswers(null)).toBeNull();
+    expect(tryNormalizeAnswers({ carKm: "beaucoup" })).toBeNull();
   });
 
   it("rejects unreadable storage instead of inventing a bilan", () => {

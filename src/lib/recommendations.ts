@@ -27,13 +27,18 @@ export function applyScenarioToAnswers(
       return ["gas", "fuel", "electric"].includes(answers.heating)
         ? { ...answers, heating: "heatpump" }
         : answers;
-    case "train":
+    case "train": {
       if (answers.carType === "none" || answers.carKm <= 0) return answers;
+      const shifted = Math.min(
+        answers.carKm * 0.25,
+        Math.max(0, 200_000 - answers.trainKm),
+      );
       return {
         ...answers,
-        carKm: answers.carKm * 0.75,
-        trainKm: answers.trainKm + answers.carKm * 0.25,
+        carKm: answers.carKm - shifted,
+        trainKm: answers.trainKm + shifted,
       };
+    }
     case "second-hand":
       return { ...answers, secondHand: "often" };
     case "devices":
@@ -116,7 +121,7 @@ export function buildScenarios(answers: AssessmentAnswers): Scenario[] {
     const simulated = simulateCombinedScenarios(answers, ["beef"]);
     add({
       id: "beef",
-      title: "Réduire le bœuf de 80 %",
+      title: "Réduire le bœuf d’un cran",
       description:
         "Remplacer les portions par des protéines végétales ou de la volaille.",
       savingKg: simulated.savingKg,

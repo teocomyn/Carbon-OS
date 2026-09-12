@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { ContentSection, PublicPage } from "@/components/public-page";
-import { FACTOR_CHANGELOG } from "@/data/factor-changelog";
+import { currentFactorChangelog, FACTOR_CHANGELOG } from "@/data/factor-changelog";
 import { emissionFactors, FACTOR_VERSION } from "@/data/emission-factors";
 import {
   FRANCE_AVERAGE_KG,
@@ -91,7 +91,7 @@ export default function MethodologyPage() {
       </ContentSection>
       <ContentSection id="facteurs" title="Mises à jour des facteurs">
         <p>
-          Version courante : {FACTOR_VERSION}. Quand les facteurs changent, les
+          Version courante : {currentFactorChangelog().version}. Quand les facteurs changent, les
           bilans déjà enregistrés sont recalculés avec le moteur actuel pour
           que l’historique reste comparable.
         </p>

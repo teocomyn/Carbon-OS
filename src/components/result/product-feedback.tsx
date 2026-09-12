@@ -84,7 +84,11 @@ export function ProductFeedback() {
 
   if (existing) {
     return (
-      <section className="mx-auto mt-12 max-w-[760px] rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 text-sm leading-6 text-[var(--muted-foreground)]">
+      <section
+        className="mx-auto mt-12 max-w-[760px] rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 text-sm leading-6 text-[var(--muted-foreground)]"
+        role="status"
+        aria-live="polite"
+      >
         <p className="inline-flex items-center gap-2 font-semibold text-[var(--foreground)]">
           <Check size={16} className="text-[var(--positive)]" />
           Merci, votre retour reste sur cet appareil.

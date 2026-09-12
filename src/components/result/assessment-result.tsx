@@ -19,8 +19,7 @@ import { Logo } from "@/components/logo";
 import { ProductFeedback } from "@/components/result/product-feedback";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { STORAGE_KEY } from "@/data/defaults";
-import { parseStoredAnswers } from "@/lib/answers";
+import { readStoredAnswers } from "@/lib/answers";
 import { FRANCE_AVERAGE_KG, FRANCE_AVERAGE_SOURCE } from "@/lib/benchmark";
 import { calculateAssessment, countAssessmentLines } from "@/lib/calculator";
 import { trackCarbonEvent } from "@/lib/analytics";
@@ -34,7 +33,7 @@ export function AssessmentResult() {
 
   useEffect(() => {
     const hydrationTimer = window.setTimeout(() => {
-      const stored = parseStoredAnswers(localStorage.getItem(STORAGE_KEY));
+      const stored = readStoredAnswers();
       setAnswers(stored);
       setReady(true);
       if (stored) trackCarbonEvent({ name: "Résultat consulté" });

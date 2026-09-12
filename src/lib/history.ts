@@ -1,6 +1,6 @@
 import { FACTOR_VERSION } from "@/data/emission-factors";
 import { HISTORY_STORAGE_KEY, MAX_HISTORY_ENTRIES } from "@/data/defaults";
-import { normalizeAnswers } from "@/lib/answers";
+import { tryNormalizeAnswers } from "@/lib/answers";
 import { calculateAssessment } from "@/lib/calculator";
 import type {
   AssessmentAnswers,
@@ -48,8 +48,11 @@ export function parseHistory(serialized: string | null): AssessmentSnapshot[] {
 export function refreshSnapshotResult(
   snapshot: AssessmentSnapshot,
 ): AssessmentSnapshot {
-  const answers = normalizeAnswers(snapshot.answers);
-  if (snapshot.result.factorVersion === FACTOR_VERSION) {
+  const answers = tryNormalizeAnswers(snapshot.answers);
+  if (!answers) return snapshot;
+  const answersChanged =
+    JSON.stringify(snapshot.answers) !== JSON.stringify(answers);
+  if (snapshot.result.factorVersion === FACTOR_VERSION && !answersChanged) {
     return { ...snapshot, answers };
   }
   const result = calculateAssessment(answers);
