@@ -39,6 +39,22 @@ describe("assessment history", () => {
     ).toEqual(["first", "second"]);
   });
 
+  it("recalculates snapshots saved with an older factor version", () => {
+    const current = snapshot("current");
+    const stale = {
+      ...current,
+      id: "stale",
+      result: {
+        ...current.result,
+        factorVersion: "FR-2024.01-legacy",
+        totalKg: 1,
+      },
+    };
+    const [refreshed] = mergeHistories([stale], []);
+    expect(refreshed?.result.factorVersion).toBe(current.result.factorVersion);
+    expect(refreshed?.result.totalKg).toBeCloseTo(current.result.totalKg, 5);
+  });
+
   it("calculates progress between the first and latest snapshots", () => {
     const first = snapshot("first");
     const latest = snapshot("latest", -500, "2026-09-12T10:00:00.000Z");

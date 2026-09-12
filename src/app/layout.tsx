@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { AppErrorBoundary } from "@/components/app-error-boundary";
 import { ThemeProvider } from "@/components/theme-provider";
 import { PrivacyAnalytics } from "@/components/privacy-analytics";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
@@ -50,7 +51,9 @@ export default function RootLayout({
   return (
     <html lang="fr" suppressHydrationWarning data-scroll-behavior="smooth">
       <body className={`${geist.variable} ${geistMono.variable}`}>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <AppErrorBoundary>{children}</AppErrorBoundary>
+        </ThemeProvider>
         <PrivacyAnalytics />
       </body>
     </html>

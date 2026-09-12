@@ -1,32 +1,36 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { SkipLink } from "@/components/skip-link";
 import { Button } from "@/components/ui/button";
 
-export default function NotFound() {
+export function IncidentScreen({
+  title = "L’interface a rencontré un problème.",
+  description = "Vos réponses restent dans ce navigateur. Rechargez la page ou recommencez le bilan.",
+  onRetry,
+}: {
+  title?: string;
+  description?: string;
+  onRetry?: () => void;
+}) {
   return (
     <main
-      id="introuvable"
+      id="incident"
       className="grid min-h-screen place-items-center bg-[var(--background)] px-5 text-center text-[var(--foreground)]"
     >
-      <SkipLink href="#introuvable" />
+      <SkipLink href="#incident" />
       <div className="max-w-[460px]">
         <Logo />
-        <p className="eyebrow mt-10">Page introuvable</p>
-        <h1 className="mt-4 text-3xl font-semibold tracking-[-.04em]">
-          Cette page n’existe pas.
-        </h1>
+        <p className="eyebrow mt-10">Incident local</p>
+        <h1 className="mt-4 text-3xl font-semibold tracking-[-.04em]">{title}</h1>
         <p className="mt-3 text-sm leading-6 text-[var(--muted-foreground)]">
-          Le lien est peut-être ancien. Le questionnaire et l’accueil restent
-          disponibles.
+          {description}
         </p>
         <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
-          <Button asChild variant="accent">
-            <Link href="/questionnaire">
-              Faire mon bilan <ArrowRight size={16} />
-            </Link>
-          </Button>
+          {onRetry && (
+            <Button type="button" variant="accent" onClick={onRetry}>
+              Réessayer
+            </Button>
+          )}
           <Button asChild variant="secondary">
             <Link href="/">Accueil</Link>
           </Button>

@@ -11,6 +11,12 @@ import {
   buildCarbonCoachInstructions,
   carbonCoachContextSchema,
 } from "@/lib/carbon-coach";
+import {
+  hasTrustedOrigin,
+  isRateLimited,
+  requestIp,
+  retryAfterSeconds,
+} from "@/lib/rate-limit";
 
 export const maxDuration = 30;
 
@@ -26,36 +32,6 @@ const requestSchema = z
 
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1_000;
 const RATE_LIMIT_REQUESTS = 15;
-
-type RateLimitEntry = { count: number; resetAt: number };
-const globalRateLimit = globalThis as typeof globalThis & {
-  carbonCoachRateLimit?: Map<string, RateLimitEntry>;
-};
-const rateLimitStore =
-  globalRateLimit.carbonCoachRateLimit ?? new Map<string, RateLimitEntry>();
-globalRateLimit.carbonCoachRateLimit = rateLimitStore;
-
-function requestIp(request: Request) {
-  return (
-    request.headers.get("x-vercel-forwarded-for") ??
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    "local"
-  );
-}
-
-function isRateLimited(identifier: string) {
-  const now = Date.now();
-  const current = rateLimitStore.get(identifier);
-  if (!current || current.resetAt <= now) {
-    rateLimitStore.set(identifier, {
-      count: 1,
-      resetAt: now + RATE_LIMIT_WINDOW_MS,
-    });
-    return false;
-  }
-  current.count += 1;
-  return current.count > RATE_LIMIT_REQUESTS;
-}
 
 function sanitizeMessages(messages: UIMessage[]) {
   return messages
@@ -76,14 +52,23 @@ function sanitizeMessages(messages: UIMessage[]) {
 }
 
 export async function POST(request: Request) {
-  const origin = request.headers.get("origin");
-  if (origin && new URL(origin).host !== new URL(request.url).host) {
+  if (!hasTrustedOrigin(request)) {
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
-  if (isRateLimited(requestIp(request))) {
+  if (
+    isRateLimited(
+      "carbon-coach",
+      requestIp(request),
+      RATE_LIMIT_REQUESTS,
+      RATE_LIMIT_WINDOW_MS,
+    )
+  ) {
     return Response.json(
       { error: "rate_limit" },
-      { status: 429, headers: { "Retry-After": "600" } },
+      {
+        status: 429,
+        headers: { "Retry-After": String(retryAfterSeconds(RATE_LIMIT_WINDOW_MS)) },
+      },
     );
   }
 

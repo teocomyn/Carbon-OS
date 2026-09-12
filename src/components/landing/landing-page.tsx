@@ -10,13 +10,16 @@ import {
   Sigma,
   X,
 } from "lucide-react";
+import { HeroVisual } from "@/components/landing/hero-visual";
+import { SkipLink } from "@/components/skip-link";
+import { emissionFactors } from "@/data/emission-factors";
 import { CARBON_SIGNAL_VIDEO } from "@/lib/media";
 import { trackCarbonEvent } from "@/lib/analytics";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 const navItems = [
   { label: "Accueil", href: "/", active: true },
-  { label: "Produit", href: "/dashboard" },
+  { label: "Produit", href: "#produit" },
   { label: "Méthode", href: "/methodologie" },
   { label: "Confidentialité", href: "/confidentialite" },
 ];
@@ -45,10 +48,10 @@ const stats = [
   },
   {
     symbol: "#",
-    target: 27,
+    target: emissionFactors.length,
     suffix: "",
     decimals: 0,
-    label: "Sources publiques",
+    label: "Facteurs versionnés",
   },
 ];
 
@@ -96,12 +99,14 @@ function CountUp({
     };
   }, [delay, target]);
 
+  const formatted =
+    decimals > 0
+      ? value.toFixed(decimals).replace(".", ",")
+      : String(Math.round(value));
+
   return (
     <>
-      {value.toLocaleString("fr-FR", {
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals,
-      })}
+      {formatted}
       {suffix}
     </>
   );
@@ -109,12 +114,27 @@ function CountUp({
 
 export function LandingPage() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [accountDeleted, setAccountDeleted] = useState(false);
   const accountLabel = isSupabaseConfigured()
     ? "Mon compte"
     : "Synchronisation";
 
   useEffect(() => {
     trackCarbonEvent({ name: "Accueil consulté" });
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("compte") === "supprime") {
+      sessionStorage.setItem("carbon-os-account-deleted", "1");
+      window.history.replaceState(null, "", "/");
+    }
+    if (sessionStorage.getItem("carbon-os-account-deleted") !== "1") return;
+    const noticeTimer = window.setTimeout(() => {
+      setAccountDeleted(true);
+      sessionStorage.removeItem("carbon-os-account-deleted");
+    }, 0);
+    return () => window.clearTimeout(noticeTimer);
   }, []);
 
   useEffect(() => {
@@ -135,6 +155,17 @@ export function LandingPage() {
   }, [menuOpen]);
 
   return (
+    <>
+    <SkipLink href="#landing-title" />
+    {accountDeleted && (
+      <p
+        className="fixed left-1/2 top-4 z-[80] -translate-x-1/2 rounded-full border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-xs font-semibold text-[var(--foreground)] shadow-lg"
+        role="status"
+        aria-live="polite"
+      >
+        Compte supprimé. Vos données locales restent sur cet appareil.
+      </p>
+    )}
     <main className="landing-shell">
       <div className="landing-media" aria-hidden="true">
         <video autoPlay muted loop playsInline preload="metadata">
@@ -298,5 +329,74 @@ export function LandingPage() {
         </section>
       </div>
     </main>
+    <section id="produit" className="landing-follow" aria-labelledby="produit-title">
+      <div className="landing-follow-inner">
+        <p className="eyebrow">Le parcours</p>
+        <h2 id="produit-title">Mesurer. Comprendre. Agir.</h2>
+        <p className="landing-follow-lead">
+          Carbon OS transforme un chiffre en trois actions réalistes. Le calcul
+          reste dans votre navigateur. Le compte n’est proposé qu’après.
+        </p>
+        <div className="landing-follow-steps">
+          {[
+            {
+              title: "Mesurer",
+              text: "Quatre minutes en mode rapide, ou vos kWh et kilomètres en mode précis.",
+            },
+            {
+              title: "Comprendre",
+              text: "Cinq postes, une fourchette, et chaque ligne reliée à un facteur versionné.",
+            },
+            {
+              title: "Agir",
+              text: "Un plan limité à trois actions. Sans classement, sans badge, sans culpabilité.",
+            },
+          ].map((step, index) => (
+            <article key={step.title}>
+              <p>0{index + 1}</p>
+              <h3>{step.title}</h3>
+              <p>{step.text}</p>
+            </article>
+          ))}
+        </div>
+        <div className="landing-follow-preview">
+          <HeroVisual />
+        </div>
+        <div className="landing-follow-faq">
+          <h3>Questions fréquentes</h3>
+          <dl>
+            <div>
+              <dt>Est-ce un bilan carbone officiel ?</dt>
+              <dd>
+                Non. C’est une estimation pédagogique pour prioriser des
+                actions, pas un audit réglementaire.
+              </dd>
+            </div>
+            <div>
+              <dt>Faut-il un compte ?</dt>
+              <dd>
+                Non. Questionnaire, résultat et historique fonctionnent sans
+                compte, sur cet appareil.
+              </dd>
+            </div>
+            <div>
+              <dt>D’où viennent les chiffres ?</dt>
+              <dd>
+                Facteurs publics ADEME / Impact CO₂, Agribalyse et Nos Gestes
+                Climat, figés et inspectables dans la méthodologie.
+              </dd>
+            </div>
+          </dl>
+        </div>
+        <Link
+          href="/questionnaire"
+          onClick={() => trackCarbonEvent({ name: "CTA bilan cliqué" })}
+          className="landing-follow-cta"
+        >
+          Faire mon bilan · 4 min <ArrowUpRight size={16} />
+        </Link>
+      </div>
+    </section>
+    </>
   );
 }

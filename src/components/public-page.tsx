@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
+import { SkipLink } from "@/components/skip-link";
 
 export function PublicPage({
   eyebrow,
@@ -17,8 +18,13 @@ export function PublicPage({
 }) {
   return (
     <main className={className}>
+      <SkipLink />
       <SiteHeader />
-      <article className="mx-auto max-w-[900px] px-5 pb-24 pt-32 sm:pt-40 lg:px-8">
+      <article
+        id="contenu"
+        tabIndex={-1}
+        className="mx-auto max-w-[900px] px-5 pb-24 pt-32 sm:pt-40 lg:px-8 outline-none"
+      >
         <Link
           href="/"
           className="mb-12 inline-flex items-center gap-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
@@ -72,12 +78,14 @@ export function PublicPage({
 export function ContentSection({
   title,
   children,
+  id,
 }: {
   title: string;
   children: React.ReactNode;
+  id?: string;
 }) {
   return (
-    <section className="panel p-6 sm:p-8">
+    <section id={id} className="panel scroll-mt-24 p-6 sm:p-8">
       <h2 className="text-xl font-semibold tracking-[-.025em]">{title}</h2>
       <div className="mt-4 space-y-4 text-sm leading-7 text-[var(--muted-foreground)]">
         {children}

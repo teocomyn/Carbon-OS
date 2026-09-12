@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import { ContentSection, PublicPage } from "@/components/public-page";
+import { currentFactorChangelog, FACTOR_CHANGELOG } from "@/data/factor-changelog";
 import { emissionFactors, FACTOR_VERSION } from "@/data/emission-factors";
+import {
+  FRANCE_AVERAGE_KG,
+  FRANCE_AVERAGE_SOURCE,
+  FRANCE_AVERAGE_URL,
+} from "@/lib/benchmark";
 import type { EmissionCategory } from "@/lib/types";
 
 export const metadata: Metadata = {
@@ -51,10 +57,9 @@ export default function MethodologyPage() {
       </ContentSection>
       <ContentSection title="Incertitude et indicateurs expérimentaux">
         <p>
-          La fourchette affichée dépend du nombre de données réelles renseignées
-          et reste indicative. Le niveau de qualité représente la part de
-          données précises dans le questionnaire : ce n’est pas une probabilité
-          statistique.
+          La fourchette affichée dépend de la part de lignes estimées dans le
+          bilan, pas d’un intervalle statistique. L’interface indique le nombre
+          de postes estimés plutôt qu’un pourcentage de fiabilité trop précis.
         </p>
         <p>
           L’indice trajectoire est un repère de produit expérimental. Il ne
@@ -64,11 +69,46 @@ export default function MethodologyPage() {
       </ContentSection>
       <ContentSection title="Comparaisons">
         <p>
+          Le résultat se compare à environ{" "}
+          {String(FRANCE_AVERAGE_KG / 1000).replace(".", ",")} t CO₂e par
+          habitant. {FRANCE_AVERAGE_SOURCE}{" "}
+          <a
+            href={FRANCE_AVERAGE_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="font-semibold text-[var(--foreground)] underline"
+          >
+            Source SDES
+          </a>
+          .
+        </p>
+        <p>
           Carbon OS ne compare que des empreintes de consommation exprimées sur
           des périmètres suffisamment cohérents. Une émission territoriale et
           une empreinte intégrant les importations ne doivent pas être placées
           sur la même échelle sans avertissement méthodologique.
         </p>
+      </ContentSection>
+      <ContentSection id="facteurs" title="Mises à jour des facteurs">
+        <p>
+          Version courante : {currentFactorChangelog().version}. Quand les facteurs changent, les
+          bilans déjà enregistrés sont recalculés avec le moteur actuel pour
+          que l’historique reste comparable.
+        </p>
+        <ol className="mt-4 space-y-4">
+          {FACTOR_CHANGELOG.map((entry) => (
+            <li key={entry.version}>
+              <p className="font-semibold text-[var(--foreground)]">
+                {entry.version} · {entry.date}
+              </p>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                {entry.changes.map((change) => (
+                  <li key={change}>{change}</li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ol>
       </ContentSection>
       <section className="panel overflow-hidden">
         <div className="border-b border-[var(--border)] p-6 sm:p-8">
@@ -104,9 +144,7 @@ export default function MethodologyPage() {
               </span>
               <span className="sm:text-right">
                 <span className="block font-mono text-sm">
-                  {factor.value.toLocaleString("fr-FR", {
-                    maximumFractionDigits: 6,
-                  })}
+                  {String(factor.value).replace(".", ",")}
                 </span>
                 <span className="text-[10px] text-[var(--muted-foreground)]">
                   {factor.unit} · confiance {factor.confidence}

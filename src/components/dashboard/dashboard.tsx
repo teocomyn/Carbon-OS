@@ -52,6 +52,9 @@ import { Logo } from "@/components/logo";
 import { CarbonCoach } from "@/components/dashboard/carbon-coach";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
+import { EmptyAssessment } from "@/components/empty-assessment";
+import { PageStatus } from "@/components/page-status";
+import { SkipLink } from "@/components/skip-link";
 import {
   ACTION_PLAN_STORAGE_KEY,
   defaultAnswers,
@@ -59,7 +62,10 @@ import {
   STORAGE_KEY,
 } from "@/data/defaults";
 import { emissionFactors, factorById } from "@/data/emission-factors";
-import { calculateAssessment } from "@/lib/calculator";
+import { readStoredAnswers, tryNormalizeAnswers } from "@/lib/answers";
+import { PRODUCT_FEEDBACK_KEY } from "@/lib/product-feedback";
+import { FRANCE_AVERAGE_KG, FRANCE_AVERAGE_SOURCE } from "@/lib/benchmark";
+import { calculateAssessment, countAssessmentLines } from "@/lib/calculator";
 import {
   completedActionsSince,
   MAX_ACTIVE_ACTIONS,
@@ -68,6 +74,7 @@ import {
   parseActionPlan,
 } from "@/lib/action-plan";
 import { secondAssessmentDelay, trackCarbonEvent } from "@/lib/analytics";
+import { downloadJson, syncHistoryWithCloud } from "@/lib/cloud-sync";
 import {
   addLocalSnapshot,
   calculateProgress,
@@ -77,11 +84,17 @@ import {
   readLocalHistory,
   writeLocalHistory,
 } from "@/lib/history";
+import { enrichActionPlan, resolvePlanScenario } from "@/lib/plan-helpers";
 import type { CarbonCoachContext } from "@/lib/carbon-coach";
-import { buildScenarios } from "@/lib/recommendations";
+import {
+  buildScenarios,
+  identifiedScenarioPotential,
+  simulateCombinedScenarios,
+} from "@/lib/recommendations";
 import { CARBON_SIGNAL_VIDEO } from "@/lib/media";
 import {
   buildProgressStory,
+  isAssessmentDue,
   recommendedAssessmentWindow,
 } from "@/lib/progress-story";
 import type {
@@ -106,48 +119,6 @@ const categoryIcons: Record<
   services: Layers3,
 };
 
-function resolvePlanScenario(
-  item: ActionPlanItem,
-  current?: Scenario,
-): Scenario {
-  return {
-    id: item.scenarioId,
-    title: item.title ?? current?.title ?? "Action personnelle",
-    description:
-      item.description ??
-      current?.description ??
-      "Une action conservée dans votre historique personnel.",
-    savingKg: item.estimatedSavingKg ?? current?.savingKg ?? 0,
-    effort: item.effort ?? current?.effort ?? "Modéré",
-    cost: item.cost ?? current?.cost ?? "Neutre",
-    icon: current?.icon ?? "sparkles",
-    rationale:
-      item.rationale ??
-      current?.rationale ??
-      "Vous aviez choisi cette action comme un levier pertinent pour votre situation.",
-  };
-}
-
-function enrichActionPlan(items: ActionPlanItem[], scenarios: Scenario[]) {
-  return normalizeActionPlan(
-    items.map((item) => {
-      const scenario = scenarios.find(
-        (candidate) => candidate.id === item.scenarioId,
-      );
-      if (!scenario) return item;
-      return {
-        ...item,
-        title: item.title ?? scenario.title,
-        description: item.description ?? scenario.description,
-        estimatedSavingKg: item.estimatedSavingKg ?? scenario.savingKg,
-        effort: item.effort ?? scenario.effort,
-        cost: item.cost ?? scenario.cost,
-        rationale: item.rationale ?? scenario.rationale,
-      };
-    }),
-  );
-}
-
 type DashboardView = "today" | "act" | "progress" | "understand";
 
 const navItems: {
@@ -162,64 +133,6 @@ const navItems: {
 ];
 
 type SyncStatus = "checking" | "local" | "syncing" | "synced" | "error";
-
-async function syncHistoryWithCloud(
-  history: AssessmentSnapshot[],
-  goalKg: number,
-  actionPlan: ActionPlanItem[],
-  preferCloudGoal = false,
-) {
-  const cloudResponse = await fetch("/api/sync", {
-    headers: { Accept: "application/json" },
-  });
-  if (cloudResponse.status === 401 || cloudResponse.status === 503) return null;
-  if (!cloudResponse.ok) throw new Error("sync_read_failed");
-  const cloud = (await cloudResponse.json()) as {
-    configured: boolean;
-    authenticated: boolean;
-    history: AssessmentSnapshot[];
-    goalKg: number | null;
-    actionPlan: ActionPlanItem[];
-  };
-  if (!cloud.configured || !cloud.authenticated) return null;
-  const merged = mergeHistories(history, cloud.history);
-  const resolvedGoal =
-    preferCloudGoal && cloud.goalKg && cloud.goalKg >= 2000
-      ? cloud.goalKg
-      : goalKg;
-
-  const mergedPlan = mergeActionPlans(actionPlan, cloud.actionPlan ?? []);
-  const response = await fetch("/api/sync", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      history: merged,
-      goalKg: resolvedGoal,
-      actionPlan: mergedPlan,
-    }),
-  });
-  if (response.status === 401 || response.status === 503) return null;
-  if (!response.ok) throw new Error("sync_failed");
-  return (await response.json()) as {
-    history: AssessmentSnapshot[];
-    goalKg: number | null;
-    actionPlan: ActionPlanItem[];
-  };
-}
-
-function downloadJson(filename: string, payload: unknown) {
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {
-    type: "application/json",
-  });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
-}
 
 function MetricCard({
   label,
@@ -572,19 +485,21 @@ export function Dashboard() {
   const [history, setHistory] = useState<AssessmentSnapshot[]>([]);
   const [actionPlan, setActionPlan] = useState<ActionPlanItem[]>([]);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("checking");
+  const [hasAssessment, setHasAssessment] = useState(false);
   useEffect(() => {
     const hydrationTimer = window.setTimeout(() => {
       let loadedAnswers = defaultAnswers;
       let loadedGoal = 5000;
       let hasLocalGoal = false;
+      const storedAnswers = readStoredAnswers();
       try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          loadedAnswers = { ...defaultAnswers, ...JSON.parse(stored) };
+        if (storedAnswers) {
+          loadedAnswers = storedAnswers;
           setAnswers(loadedAnswers);
+          setHasAssessment(true);
         }
         const storedGoal = Number(localStorage.getItem(GOAL_STORAGE_KEY));
-        if (storedGoal >= 2000) {
+        if (storedGoal >= 500) {
           hasLocalGoal = true;
           loadedGoal = storedGoal;
           setGoalKg(storedGoal);
@@ -608,7 +523,7 @@ export function Dashboard() {
       );
       localStorage.setItem(ACTION_PLAN_STORAGE_KEY, JSON.stringify(loadedPlan));
       setActionPlan(loadedPlan);
-      if (!loadedHistory.length && localStorage.getItem(STORAGE_KEY)) {
+      if (!loadedHistory.length && storedAnswers) {
         loadedHistory = addLocalSnapshot(
           createAssessmentSnapshot({
             answers: loadedAnswers,
@@ -618,6 +533,8 @@ export function Dashboard() {
           }),
         );
       }
+      if (storedAnswers && loadedHistory.length) setHasAssessment(true);
+      loadedHistory = writeLocalHistory(loadedHistory);
       setHistory(loadedHistory);
       setHydrated(true);
       setSyncStatus("syncing");
@@ -631,6 +548,20 @@ export function Dashboard() {
             mergeHistories(loadedHistory, cloud.history),
           );
           setHistory(merged);
+          if (merged.length) {
+            const latest = merged.at(-1);
+            if (latest && !storedAnswers) {
+              const cloudAnswers = tryNormalizeAnswers(latest.answers);
+              if (cloudAnswers) {
+                setHasAssessment(true);
+                setAnswers(cloudAnswers);
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudAnswers));
+                loadedAnswers = cloudAnswers;
+              }
+            } else if (storedAnswers) {
+              setHasAssessment(true);
+            }
+          }
           const mergedPlan = enrichActionPlan(
             mergeActionPlans(loadedPlan, cloud.actionPlan ?? []),
             buildScenarios(loadedAnswers),
@@ -640,7 +571,7 @@ export function Dashboard() {
             ACTION_PLAN_STORAGE_KEY,
             JSON.stringify(mergedPlan),
           );
-          if (cloud.goalKg && cloud.goalKg >= 2000) {
+          if (cloud.goalKg && cloud.goalKg >= 500) {
             setGoalKg(cloud.goalKg);
             localStorage.setItem(GOAL_STORAGE_KEY, String(cloud.goalKg));
           }
@@ -657,10 +588,16 @@ export function Dashboard() {
   }, [feedback]);
   const result = useMemo(() => calculateAssessment(answers), [answers]);
   const scenarios = useMemo(() => buildScenarios(answers), [answers]);
-  const savingKg = scenarios
-    .filter((s) => activeScenarios.includes(s.id))
-    .reduce((sum, s) => sum + s.savingKg, 0);
-  const simulatedKg = Math.max(result.totalKg - savingKg, 0);
+  const combinedSimulation = useMemo(
+    () => simulateCombinedScenarios(answers, activeScenarios),
+    [answers, activeScenarios],
+  );
+  const identifiedPotential = useMemo(
+    () => identifiedScenarioPotential(answers, scenarios),
+    [answers, scenarios],
+  );
+  const savingKg = combinedSimulation.savingKg;
+  const simulatedKg = combinedSimulation.afterKg;
   const topLines = result.categories
     .flatMap((c) => c.lines)
     .sort((a, b) => b.kgCo2e - a.kgCo2e)
@@ -685,6 +622,9 @@ export function Dashboard() {
   const nextAssessmentWindow = progress.latest
     ? recommendedAssessmentWindow(progress.latest.createdAt)
     : null;
+  const reassessmentDue = Boolean(
+    progress.latest && isAssessmentDue(progress.latest.createdAt),
+  );
   const meaningfulCategoryChanges =
     progressStory?.categoryChanges
       .filter((category) => Math.abs(category.changeKg) >= 1)
@@ -708,12 +648,11 @@ export function Dashboard() {
     }).format(new Date(snapshot.createdAt)),
     tonnes: Number((snapshot.result.totalKg / 1000).toFixed(2)),
   }));
+  const lineCounts = countAssessmentLines(result);
   const confidenceLabel =
-    result.confidenceScore >= 80
-      ? "élevée"
-      : result.confidenceScore >= 60
-        ? "moyenne"
-        : "à affiner";
+    lineCounts.estimated === 0
+      ? "données déclarées"
+      : `${lineCounts.estimated} poste${lineCounts.estimated > 1 ? "s" : ""} estimé${lineCounts.estimated > 1 ? "s" : ""}`;
   const coachContext: CarbonCoachContext = {
     totalKg: Math.round(result.totalKg / 10) * 10,
     confidenceScore: result.confidenceScore,
@@ -756,11 +695,18 @@ export function Dashboard() {
       current.includes(id) ? current.filter((x) => x !== id) : [...current, id],
     );
   const reset = () => {
+    if (
+      !window.confirm(
+        "Réinitialiser le bilan affiché sur cet appareil ? L’historique n’est pas effacé.",
+      )
+    )
+      return;
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(ACTION_PLAN_STORAGE_KEY);
     setAnswers(defaultAnswers);
     setActionPlan([]);
     setActiveScenarios([]);
+    setHasAssessment(false);
   };
   const deleteAllData = async () => {
     if (
@@ -774,12 +720,14 @@ export function Dashboard() {
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(GOAL_STORAGE_KEY);
     localStorage.removeItem(ACTION_PLAN_STORAGE_KEY);
+    localStorage.removeItem(PRODUCT_FEEDBACK_KEY);
     clearLocalHistory();
     setAnswers(defaultAnswers);
     setGoalKg(5000);
     setHistory([]);
     setActionPlan([]);
     setActiveScenarios([]);
+    setHasAssessment(false);
     if (syncStatus === "synced") {
       const response = await fetch("/api/sync", { method: "DELETE" });
       setFeedback(
@@ -854,7 +802,7 @@ export function Dashboard() {
           ACTION_PLAN_STORAGE_KEY,
           JSON.stringify(mergedPlan),
         );
-        if (cloud.goalKg && cloud.goalKg >= 2000) {
+        if (cloud.goalKg && cloud.goalKg >= 500) {
           setGoalKg(cloud.goalKg);
           localStorage.setItem(GOAL_STORAGE_KEY, String(cloud.goalKg));
         }
@@ -995,17 +943,18 @@ export function Dashboard() {
     }
   };
 
-  if (!hydrated)
+  if (!hydrated) return <PageStatus label="Chargement du tableau de bord" />;
+  if (!hasAssessment) {
     return (
-      <main className="grid min-h-screen place-items-center">
-        <div className="text-center">
-          <Logo />
-          <div className="mx-auto mt-8 size-6 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
-        </div>
-      </main>
+      <EmptyAssessment
+        title="Le tableau de bord attend votre premier bilan."
+        description="Le lien Produit n’ouvre plus un profil d’exemple. Répondez au questionnaire pour voir votre empreinte, vos actions et votre historique."
+      />
     );
+  }
   return (
     <div className="process-shell dashboard-shell min-h-screen bg-[var(--background)]">
+      <SkipLink href="#overview" />
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] border-r border-[var(--border)] bg-[var(--card)] p-5 lg:flex lg:flex-col">
         <div className="px-2 py-2">
           <Logo />
@@ -1162,10 +1111,23 @@ export function Dashboard() {
                 </h1>
               </div>
               <div className="flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-xs text-[var(--muted-foreground)]">
-                <span className="size-1.5 rounded-full bg-[var(--positive)]" />{" "}
-                Calcul à jour
+                <span
+                  className={`size-1.5 rounded-full ${reassessmentDue ? "bg-[var(--orange)]" : "bg-[var(--positive)]"}`}
+                />{" "}
+                {reassessmentDue ? "Nouveau bilan conseillé" : "Calcul à jour"}
               </div>
             </div>
+            {reassessmentDue && (
+              <div className="mt-5 flex flex-col justify-between gap-3 rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 sm:flex-row sm:items-center">
+                <p className="text-sm leading-6 text-[var(--muted-foreground)]">
+                  Trois mois se sont écoulés depuis votre dernier bilan. Un
+                  nouveau passage permet de voir ce qui a vraiment changé.
+                </p>
+                <Button asChild variant="accent">
+                  <Link href="/questionnaire">Refaire mon bilan</Link>
+                </Button>
+              </div>
+            )}
             <div className="mt-7 grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
               <div className="dashboard-signal-card panel relative order-2 overflow-hidden p-6 sm:p-8 xl:order-1">
                 <div className="dashboard-signal-media" aria-hidden="true">
@@ -1182,7 +1144,7 @@ export function Dashboard() {
                         Empreinte annuelle estimée
                       </p>
                       <span className="dashboard-live-code">
-                        Fiabilité {confidenceLabel}
+                        {confidenceLabel}
                       </span>
                     </div>
                     <p className="number-tabular mt-3 text-[clamp(4.8rem,10vw,7.5rem)] font-semibold leading-none tracking-[-.085em]">
@@ -1227,10 +1189,10 @@ export function Dashboard() {
                     </ResponsiveContainer>
                     <div className="pointer-events-none relative -top-[126px] text-center">
                       <p className="text-xl font-semibold">
-                        {result.confidenceScore}%
+                        {lineCounts.estimated}/{lineCounts.total}
                       </p>
                       <p className="text-[9px] uppercase tracking-wider text-[var(--muted-foreground)]">
-                        qualité
+                        estimés
                       </p>
                     </div>
                   </div>
@@ -1296,8 +1258,8 @@ export function Dashboard() {
                 />
                 <MetricCard
                   label="Potentiel identifié"
-                  value={`−${formatTons(scenarios.reduce((s, x) => s + x.savingKg, 0))} t`}
-                  note="Leviers non cumulés mécaniquement"
+                  value={`−${formatTons(identifiedPotential.savingKg)} t`}
+                  note="Tous les leviers, recalculés ensemble"
                   icon={Target}
                 />
                 <MetricCard
@@ -1780,7 +1742,7 @@ export function Dashboard() {
                       },
                       {
                         label: "France",
-                        kg: 8200,
+                        kg: FRANCE_AVERAGE_KG,
                         color: "var(--muted-foreground)",
                       },
                       {
@@ -1800,7 +1762,7 @@ export function Dashboard() {
                           <div
                             className="h-full rounded-full"
                             style={{
-                              width: `${Math.min((item.kg / Math.max(result.totalKg, 8200)) * 100, 100)}%`,
+                              width: `${Math.min((item.kg / Math.max(result.totalKg, FRANCE_AVERAGE_KG)) * 100, 100)}%`,
                               background: item.color,
                             }}
                           />
@@ -1809,8 +1771,8 @@ export function Dashboard() {
                     ))}
                   </div>
                   <p className="mt-6 border-t border-[var(--border)] pt-4 text-[10px] leading-4 text-[var(--muted-foreground)]">
-                    France : 8,2 t CO₂e/personne/an, ADEME 2025–2026. Cible 2 t
-                    : trajectoire neutralité carbone à long terme.
+                    {FRANCE_AVERAGE_SOURCE} Cible 2 t : trajectoire de
+                    neutralité à long terme.
                   </p>
                 </div>
               </div>
@@ -2167,26 +2129,30 @@ export function Dashboard() {
             <div className="mt-7 grid gap-5 lg:grid-cols-[.72fr_1.28fr]">
               <div className="panel p-6">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold">Fiabilité du résultat</p>
+                  <p className="text-sm font-semibold">Part d’estimation</p>
                   <span className="rounded-full bg-[var(--accent-soft)] px-2 py-1 text-[9px] font-bold text-[var(--accent)]">
-                    {confidenceLabel}
+                    {lineCounts.estimated}/{lineCounts.total}
                   </span>
                 </div>
                 <div className="mt-6 flex items-end gap-3">
-                  <p className="text-4xl font-semibold capitalize tracking-[-.06em]">
-                    {confidenceLabel}
+                  <p className="text-4xl font-semibold tracking-[-.06em]">
+                    {lineCounts.estimated}
+                    <span className="text-lg text-[var(--muted-foreground)]">
+                      /{lineCounts.total}
+                    </span>
                   </p>
                 </div>
                 <div className="mt-5 h-2 overflow-hidden rounded-full bg-[var(--surface)]">
                   <div
                     className="h-full rounded-full bg-[var(--accent)]"
-                    style={{ width: `${result.confidenceScore}%` }}
+                    style={{
+                      width: `${lineCounts.total ? (lineCounts.estimated / lineCounts.total) * 100 : 0}%`,
+                    }}
                   />
                 </div>
                 <p className="mt-3 text-[10px] leading-4 text-[var(--muted-foreground)]">
-                  Cette indication dépend de la part de données réelles que vous
-                  avez renseignées. Le pourcentage technique reste disponible
-                  dans l’export de vos données.
+                  Nombre de postes calculés avec une hypothèse plutôt qu’une
+                  donnée déclarée. Ce n’est pas une probabilité statistique.
                 </p>
                 <ul className="mt-6 space-y-3 text-xs text-[var(--muted-foreground)]">
                   <li className="flex gap-2">
@@ -2212,8 +2178,13 @@ export function Dashboard() {
                 <div className="border-b border-[var(--border)] p-6">
                   <p className="text-sm font-semibold">Sources du calcul</p>
                   <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                    {emissionFactors.length} facteurs · version{" "}
-                    {result.factorVersion}
+                    {emissionFactors.length} facteurs ·{" "}
+                    <Link
+                      href={{ pathname: "/methodologie", hash: "facteurs" }}
+                      className="font-medium text-[var(--foreground)] underline-offset-2 hover:underline"
+                    >
+                      version {result.factorVersion}
+                    </Link>
                   </p>
                 </div>
                 <div className="max-h-[420px] overflow-y-auto">

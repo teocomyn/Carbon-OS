@@ -39,6 +39,24 @@ html {
   background: var(--background);
   scroll-behavior: smooth;
 }
+.skip-link {
+  position: absolute;
+  left: 16px;
+  top: -56px;
+  z-index: 100;
+  border-radius: 999px;
+  background: var(--foreground);
+  padding: 10px 16px;
+  color: var(--background);
+  font-size: 13px;
+  font-weight: 600;
+}
+.skip-link:focus {
+  top: 16px;
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
 body {
   margin: 0;
   background: var(--background);
@@ -905,6 +923,116 @@ body.landing-menu-open {
   }
   .landing-stats {
     row-gap: 8px;
+  }
+}
+
+.landing-follow {
+  background: var(--background);
+  color: var(--foreground);
+  border-top: 1px solid var(--border);
+}
+.landing-follow-inner {
+  width: min(1040px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 72px 0 88px;
+}
+.landing-follow h2 {
+  margin-top: 12px;
+  max-width: 16ch;
+  font-size: clamp(32px, 5vw, 52px);
+  font-weight: 600;
+  letter-spacing: -0.05em;
+  line-height: 1.05;
+}
+.landing-follow-lead {
+  max-width: 58ch;
+  margin-top: 16px;
+  color: var(--muted-foreground);
+  font-size: 16px;
+  line-height: 1.6;
+}
+.landing-follow-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 36px;
+}
+.landing-follow-steps article {
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: var(--card);
+  padding: 22px;
+}
+.landing-follow-steps article > p:first-child {
+  color: var(--positive);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.landing-follow-steps h3 {
+  margin-top: 10px;
+  font-size: 20px;
+  letter-spacing: -0.03em;
+}
+.landing-follow-steps article > p:last-child {
+  margin-top: 8px;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.landing-follow-preview {
+  margin-top: 40px;
+}
+.landing-follow-faq {
+  margin-top: 48px;
+}
+.landing-follow-faq h3 {
+  font-size: 22px;
+  letter-spacing: -0.03em;
+}
+.landing-follow-faq dl {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+.landing-follow-faq div {
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--card);
+  padding: 18px 20px;
+}
+.landing-follow-faq dt {
+  font-size: 15px;
+  font-weight: 600;
+}
+.landing-follow-faq dd {
+  margin-top: 8px;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.landing-follow-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 36px;
+  border-radius: 999px;
+  background: var(--foreground);
+  padding: 13px 24px;
+  color: var(--background);
+  font-size: 14px;
+  font-weight: 600;
+}
+.landing-follow-cta:hover {
+  opacity: 0.92;
+}
+
+@media (max-width: 720px) {
+  .landing-follow-inner {
+    padding: 48px 0 64px;
+  }
+  .landing-follow-steps {
+    grid-template-columns: 1fr;
   }
 }
 

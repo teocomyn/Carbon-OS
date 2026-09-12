@@ -20,7 +20,7 @@ export function SiteHeader() {
             Méthode
           </Link>
           <Link
-            href="/dashboard"
+            href={{ pathname: "/", hash: "produit" }}
             className="transition-colors hover:text-[var(--foreground)]"
           >
             Produit

@@ -1,12 +1,35 @@
 import { NextResponse } from "next/server";
+import { hasTrustedOrigin, isRateLimited, requestIp, retryAfterSeconds } from "@/lib/rate-limit";
 import {
   createSupabaseAdminClient,
   createSupabaseServerClient,
 } from "@/lib/supabase/server";
 
+const ACCOUNT_DELETE_WINDOW_MS = 10 * 60 * 1_000;
+const ACCOUNT_DELETE_LIMIT = 5;
+
 export async function DELETE(request: Request) {
-  if (request.headers.get("origin") !== new URL(request.url).origin)
+  if (!hasTrustedOrigin(request))
     return NextResponse.json({ error: "invalid_origin" }, { status: 403 });
+  if (
+    isRateLimited(
+      "account-delete",
+      requestIp(request),
+      ACCOUNT_DELETE_LIMIT,
+      ACCOUNT_DELETE_WINDOW_MS,
+    )
+  ) {
+    return NextResponse.json(
+      { error: "rate_limit" },
+      {
+        status: 429,
+        headers: {
+          "Cache-Control": "private, no-store",
+          "Retry-After": String(retryAfterSeconds(ACCOUNT_DELETE_WINDOW_MS)),
+        },
+      },
+    );
+  }
   const supabase = await createSupabaseServerClient();
   const admin = createSupabaseAdminClient();
   if (!supabase)
@@ -21,15 +44,6 @@ export async function DELETE(request: Request) {
   } = await supabase.auth.getUser();
   if (!user)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
-  const { error: signOutError } = await supabase.auth.signOut({
-    scope: "global",
-  });
-  if (signOutError)
-    return NextResponse.json(
-      { error: "session_revoke_failed" },
-      { status: 500 },
-    );
 
   const { error } = await admin.auth.admin.deleteUser(user.id);
   if (error)

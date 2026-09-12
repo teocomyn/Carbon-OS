@@ -77,6 +77,12 @@ export function AccountPanel({
       )
     )
       return;
+    if (
+      !window.confirm(
+        "Dernière confirmation : cette action est irréversible. Continuer ?",
+      )
+    )
+      return;
     setPending(true);
     const response = await fetch("/api/account", { method: "DELETE" });
     if (response.ok) {
@@ -144,7 +150,11 @@ export function AccountPanel({
           </Button>
         </div>
         {message && (
-          <p className="mt-4 text-xs text-[var(--muted-foreground)]">
+          <p
+            className="mt-4 text-xs text-[var(--muted-foreground)]"
+            role="status"
+            aria-live="polite"
+          >
             {message}
           </p>
         )}

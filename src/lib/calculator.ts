@@ -1,4 +1,5 @@
 import { FACTOR_VERSION, factorById } from "@/data/emission-factors";
+import { normalizeAnswers } from "@/lib/answers";
 import type {
   AssessmentAnswers,
   AssessmentResult,
@@ -51,7 +52,16 @@ const heatingFactor: Record<AssessmentAnswers["heating"], string> = {
   district: "district",
 };
 
-export function calculateAssessment(a: AssessmentAnswers): AssessmentResult {
+const trainFactor: Record<AssessmentAnswers["trainService"], string> = {
+  tgv: "train-tgv",
+  mixed: "train-mixed",
+  regional: "train-ter",
+};
+
+export function calculateAssessment(
+  rawAnswers: AssessmentAnswers,
+): AssessmentResult {
+  const a = normalizeAnswers(rawAnswers);
   const lines: CalculationLine[] = [];
 
   if (a.carType !== "none" && a.carKm > 0) {
@@ -69,45 +79,51 @@ export function calculateAssessment(a: AssessmentAnswers): AssessmentResult {
       ),
     );
   }
-  if (a.primaryMobility === "motorcycle") {
+  if (a.primaryMobility === "motorcycle" && a.motorcycleKm > 0) {
     lines.push(
       line(
         "motorcycle",
         "transport",
         "Moto",
-        5000,
+        a.motorcycleKm,
         "km/an",
         "motorcycle",
-        true,
-        "Distance annuelle estimée en mode rapide.",
+        a.mode === "quick",
+        a.mode === "quick"
+          ? "Distance annuelle estimée en mode rapide."
+          : `${a.motorcycleKm.toLocaleString("fr-FR")} km déclarés.`,
       ),
     );
   }
-  if (a.primaryMobility === "transit") {
+  if (a.primaryMobility === "transit" && a.transitKm > 0) {
     lines.push(
       line(
         "transit",
         "transport",
         "Transports publics",
-        4000,
+        a.transitKm,
         "passager.km/an",
         "transit",
-        true,
-        "Distance annuelle estimée à partir du mode principal.",
+        a.mode === "quick",
+        a.mode === "quick"
+          ? "Distance annuelle estimée à partir du mode principal."
+          : `${a.transitKm.toLocaleString("fr-FR")} passager.km déclarés.`,
       ),
     );
   }
-  if (a.primaryMobility === "bike") {
+  if (a.primaryMobility === "bike" && a.bikeKm > 0) {
     lines.push(
       line(
         "bike",
         "transport",
         "Vélo",
-        2500,
+        a.bikeKm,
         "km/an",
         "bike",
-        true,
-        "Fabrication amortie incluse.",
+        a.mode === "quick",
+        a.mode === "quick"
+          ? "Fabrication amortie incluse, distance estimée."
+          : `${a.bikeKm.toLocaleString("fr-FR")} km déclarés, fabrication amortie incluse.`,
       ),
     );
   }
@@ -119,9 +135,13 @@ export function calculateAssessment(a: AssessmentAnswers): AssessmentResult {
         "Train",
         a.trainKm,
         "passager.km/an",
-        "train-tgv",
-        a.mode === "quick",
-        "Proxy TGV France, infrastructure incluse.",
+        trainFactor[a.trainService],
+        a.mode === "quick" || a.trainService === "mixed",
+        a.trainService === "tgv"
+          ? "TGV France, infrastructure incluse."
+          : a.trainService === "regional"
+            ? "Train régional, infrastructure incluse."
+            : "Mix TGV / TER lorsque le détail n’est pas connu.",
       ),
     );
   if (a.shortFlights > 0)
@@ -145,9 +165,9 @@ export function calculateAssessment(a: AssessmentAnswers): AssessmentResult {
         "Vols long-courriers",
         a.longFlights * 14000,
         "passager.km/an",
-        "flight",
+        "flight-long",
         true,
-        `${a.longFlights} aller-retour d'environ 7 000 km par trajet ; proxy avion ADEME.`,
+        `${a.longFlights} aller-retour d'environ 7 000 km par trajet ; facteur long-courrier.`,
       ),
     );
 
@@ -332,13 +352,12 @@ export function calculateAssessment(a: AssessmentAnswers): AssessmentResult {
     },
   );
   const totalKg = categories.reduce((sum, item) => sum + item.kgCo2e, 0);
-  const measuredInputs = [
-    a.heatingKwh !== null,
-    a.electricityKwh !== null,
-    a.mode === "precise",
-  ].filter(Boolean).length;
-  const confidenceScore = Math.min(91, 68 + measuredInputs * 7);
-  const uncertainty = 0.2 - measuredInputs * 0.025;
+  const estimatedLines = lines.filter((item) => item.estimated).length;
+  const estimatedShare = lines.length ? estimatedLines / lines.length : 1;
+  const confidenceScore = Math.round(
+    Math.min(92, Math.max(48, 100 - estimatedShare * 48)),
+  );
+  const uncertainty = 0.08 + estimatedShare * 0.18;
 
   return {
     totalKg,
@@ -348,5 +367,13 @@ export function calculateAssessment(a: AssessmentAnswers): AssessmentResult {
     categories,
     factorVersion: FACTOR_VERSION,
     calculatedAt: new Date().toISOString(),
+  };
+}
+
+export function countAssessmentLines(result: AssessmentResult) {
+  const lines = result.categories.flatMap((category) => category.lines);
+  return {
+    total: lines.length,
+    estimated: lines.filter((item) => item.estimated).length,
   };
 }

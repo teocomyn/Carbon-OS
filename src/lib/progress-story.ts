@@ -23,6 +23,10 @@ export function recommendedAssessmentWindow(from: string) {
   };
 }
 
+export function isAssessmentDue(from: string, now = Date.now()) {
+  return now >= new Date(recommendedAssessmentWindow(from).start).getTime();
+}
+
 export function buildProgressStory(entries: AssessmentSnapshot[]) {
   const ordered = normalizeHistory(entries);
   const previous = ordered.at(-2);

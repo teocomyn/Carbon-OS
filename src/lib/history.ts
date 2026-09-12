@@ -1,4 +1,7 @@
+import { FACTOR_VERSION } from "@/data/emission-factors";
 import { HISTORY_STORAGE_KEY, MAX_HISTORY_ENTRIES } from "@/data/defaults";
+import { tryNormalizeAnswers } from "@/lib/answers";
+import { calculateAssessment } from "@/lib/calculator";
 import type {
   AssessmentAnswers,
   AssessmentResult,
@@ -42,11 +45,26 @@ export function parseHistory(serialized: string | null): AssessmentSnapshot[] {
   }
 }
 
+export function refreshSnapshotResult(
+  snapshot: AssessmentSnapshot,
+): AssessmentSnapshot {
+  const answers = tryNormalizeAnswers(snapshot.answers);
+  if (!answers) return snapshot;
+  const answersChanged =
+    JSON.stringify(snapshot.answers) !== JSON.stringify(answers);
+  if (snapshot.result.factorVersion === FACTOR_VERSION && !answersChanged) {
+    return { ...snapshot, answers };
+  }
+  const result = calculateAssessment(answers);
+  result.calculatedAt = snapshot.createdAt;
+  return { ...snapshot, answers, result };
+}
+
 export function normalizeHistory(
   entries: AssessmentSnapshot[],
 ): AssessmentSnapshot[] {
   const unique = new Map<string, AssessmentSnapshot>();
-  for (const entry of entries) unique.set(entry.id, entry);
+  for (const entry of entries) unique.set(entry.id, refreshSnapshotResult(entry));
   return [...unique.values()]
     .sort(
       (left, right) =>

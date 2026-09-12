@@ -16,6 +16,7 @@ de réponses détaillées ou d’identifiants personnels.
 - `Objectif défini`
 - `Compte activé`
 - `Second bilan réalisé` avec un délai classé en moins ou plus de 30 jours
+- `Retour produit` avec clarté, confiance et prochaine étape, sans texte libre
 
 Les paramètres d’URL sont supprimés avant l’envoi. Global Privacy Control,
 Do Not Track et la préférence locale `va-disable=1` désactivent la mesure.
@@ -30,6 +31,7 @@ Do Not Track et la préférence locale `va-disable=1` désactivent la mesure.
 4. Adoption d’une action = `Action sélectionnée / Résultat consulté`.
 5. Retour sous 30 jours = `Second bilan réalisé` filtré sur
    `delai=moins_30_jours / Questionnaire terminé`.
+6. Clarté perçue = `Retour produit` filtré sur `clarte=haute / Retour produit`.
 
 Objectifs initiaux : complétion supérieure à 70 %, mode rapide sous 5 minutes,
 adoption d’une action supérieure à 40 %, second bilan sous 30 jours supérieur à
