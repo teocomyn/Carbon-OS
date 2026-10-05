@@ -26,6 +26,7 @@ describe("shared rate limit", () => {
     expect(await rateLimitResponse(request(), "test", 2, 1000)).toBeNull();
     const [name, args] = rpc.mock.calls[0]!;
     expect(name).toBe("consume_server_request_limit");
+    expect(args.p_server_key).toBe("a".repeat(64));
     expect(args.p_identifier_hash).toMatch(/^[a-f0-9]{64}$/);
     expect(args.p_identifier_hash).not.toContain("192.0.2.1");
   });

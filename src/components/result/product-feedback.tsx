@@ -119,9 +119,13 @@ export function ProductFeedback() {
         setExisting(stored);
       }}
     >
-      <p className="text-sm font-semibold">Trois questions pour améliorer Carbon OS</p>
+      <p className="text-sm font-semibold">
+        Trois questions pour améliorer Carbon OS
+      </p>
       <p className="mt-2 text-xs leading-5 text-[var(--muted-foreground)]">
-        Réponses agrégées uniquement. Aucun texte libre, aucun e-mail.
+        Vos trois choix sont transmis à la mesure d’audience, sauf si vous
+        l’avez désactivée. Aucun bilan, texte libre ni e-mail n’est envoyé avec
+        eux.
       </p>
       <div className="mt-6 space-y-5">
         <ChoiceRow

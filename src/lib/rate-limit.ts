@@ -2,11 +2,13 @@ type RateLimitEntry = { count: number; resetAt: number };
 
 const globalRateLimit = globalThis as typeof globalThis & {
   carbonRateLimits?: Map<string, Map<string, RateLimitEntry>>;
+  carbonRateLimitCleanup?: Map<string, number>;
 };
 
 function storeFor(scope: string) {
   const root =
-    globalRateLimit.carbonRateLimits ?? new Map<string, Map<string, RateLimitEntry>>();
+    globalRateLimit.carbonRateLimits ??
+    new Map<string, Map<string, RateLimitEntry>>();
   globalRateLimit.carbonRateLimits = root;
   const scoped = root.get(scope) ?? new Map<string, RateLimitEntry>();
   root.set(scope, scoped);
@@ -39,8 +41,15 @@ export function isRateLimited(
 ) {
   const now = Date.now();
   const store = storeFor(scope);
-  for (const [key, entry] of store) {
-    if (entry.resetAt <= now) store.delete(key);
+  const cleanup = (globalRateLimit.carbonRateLimitCleanup ??= new Map<
+    string,
+    number
+  >());
+  if (now - (cleanup.get(scope) ?? 0) >= 60_000 || store.size >= 10_000) {
+    for (const [key, entry] of store) {
+      if (entry.resetAt <= now) store.delete(key);
+    }
+    cleanup.set(scope, now);
   }
   if (store.size >= 10_000 && !store.has(identifier)) return true;
   const current = store.get(identifier);

@@ -12,18 +12,18 @@ export async function rateLimitResponse(
   windowMs: number,
 ): Promise<Response | null> {
   const scopedKey = process.env.SUPABASE_RATE_LIMIT_KEY;
-  const client =
-    scopedKey && supabaseUrl && supabasePublishableKey
-      ? createClient(supabaseUrl, supabasePublishableKey, {
-          auth: { persistSession: false, autoRefreshToken: false },
-        })
-      : createSupabaseAdminClient();
-  const secret =
-    scopedKey ??
-    process.env.SUPABASE_SECRET_KEY ??
-    process.env.SUPABASE_SERVICE_ROLE_KEY;
   let limited: boolean;
   try {
+    const client =
+      scopedKey && supabaseUrl && supabasePublishableKey
+        ? createClient(supabaseUrl, supabasePublishableKey, {
+            auth: { persistSession: false, autoRefreshToken: false },
+          })
+        : createSupabaseAdminClient();
+    const secret =
+      scopedKey ??
+      process.env.SUPABASE_SECRET_KEY ??
+      process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (client && secret) {
       // Store only an IP HMAC. The scoped secret goes to Supabase, never the browser.
       const hash = createHmac("sha256", secret)

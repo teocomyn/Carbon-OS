@@ -75,6 +75,11 @@ export const actionPlanItemSchema = z.object({
 });
 
 export const syncRequestSchema = z.object({
+  deletedAt: z.iso
+    .datetime({ offset: true })
+    .nullable()
+    .optional()
+    .default(null),
   history: z.array(syncSnapshotSchema).max(50),
   goalKg: z.number().int().min(500).max(100_000),
   actionPlan: z.array(actionPlanItemSchema).max(43),

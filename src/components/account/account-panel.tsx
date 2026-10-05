@@ -54,10 +54,6 @@ export function AccountPanel({
           captchaToken,
         },
       });
-      if (turnstileSiteKey) {
-        setCaptchaToken(undefined);
-        setCaptchaKey((current) => current + 1);
-      }
       setPending(false);
       setMessage(
         error
@@ -67,6 +63,10 @@ export function AccountPanel({
     } catch {
       setMessage("Connexion indisponible. Vos bilans locaux sont conservés.");
     } finally {
+      if (turnstileSiteKey) {
+        setCaptchaToken(undefined);
+        setCaptchaKey((current) => current + 1);
+      }
       setPending(false);
     }
   };
@@ -103,8 +103,14 @@ export function AccountPanel({
     try {
       const response = await fetch("/api/account", { method: "DELETE" });
       if (response.ok) {
-        clearLocalData();
+        const localDeleted = clearLocalData();
         await createSupabaseBrowserClient()?.auth.signOut({ scope: "local" });
+        if (!localDeleted) {
+          setMessage(
+            "Compte supprimé. La suppression locale est bloquée : effacez les données de ce site dans les réglages du navigateur.",
+          );
+          return;
+        }
         router.push("/?compte=supprime");
         router.refresh();
       } else {

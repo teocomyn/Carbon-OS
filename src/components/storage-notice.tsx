@@ -1,18 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
+import {
+  hasStorageIssue,
+  subscribeStorageIssues,
+  writeBrowserStorage,
+  removeBrowserStorage,
+} from "@/lib/browser-storage";
 
 export function StorageNotice() {
-  const [unavailable, setUnavailable] = useState(false);
+  const unavailable = useSyncExternalStore(
+    subscribeStorageIssues,
+    hasStorageIssue,
+    () => false,
+  );
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      try {
-        const key = "carbon-os-storage-probe";
-        window.localStorage.setItem(key, "1");
-        window.localStorage.removeItem(key);
-      } catch {
-        setUnavailable(true);
-      }
+      const key = "carbon-os-storage-probe";
+      if (writeBrowserStorage(key, "1")) removeBrowserStorage(key);
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
@@ -22,9 +27,9 @@ export function StorageNotice() {
       role="status"
       className="my-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 text-sm leading-6 text-[var(--foreground)]"
     >
-      Votre navigateur ne permet pas la sauvegarde locale. Vous pouvez faire
-      votre bilan, mais il ne sera pas conservé après un rechargement.
-      Exportez-le depuis le tableau de bord pour le garder.
+      La sauvegarde locale est bloquée ou saturée. Vous pouvez faire votre
+      bilan, mais vos dernières modifications peuvent être perdues après un
+      rechargement. Exportez-le depuis le tableau de bord pour le garder.
     </p>
   );
 }

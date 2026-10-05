@@ -36,9 +36,9 @@ La clé `SUPABASE_SECRET_KEY` est un secret serveur. Elle ne doit jamais être p
 
 ### Limites partagées entre les instances Vercel
 
-Exécuter les migrations `20261005140000`, `20261005141000` et `20261005143000` après les migrations initiales. Elles ajoutent les compteurs privés et la fusion atomique des plans, sans retirer les politiques RLS utilisateur.
+Exécuter les migrations `20261005140000`, `20261005141000`, `20261005143000` et `20261005151000` après les migrations initiales. Elles ajoutent les compteurs privés, la fusion atomique des plans et une génération de suppression empêchant un autre appareil de réenvoyer les anciennes données, sans retirer les politiques RLS utilisateur. Les uploads et suppressions utilisent le même verrou transactionnel par utilisateur.
 
-La production doit disposer de `SUPABASE_RATE_LIMIT_KEY`, une clé serveur aléatoire distincte de la clé administrateur. Générer au moins 32 octets aléatoires, enregistrer uniquement son SHA-256 dans `public.rate_limit_server_keys.key_hash` via une session d’administration Supabase, puis ajouter la clé d’origine comme variable sensible dans Vercel. Ne jamais copier cette clé dans Git, une capture d’écran ou un message.
+La production doit disposer de `SUPABASE_RATE_LIMIT_KEY`, une clé serveur aléatoire distincte de la clé administrateur. Générer exactement 32 octets encodés en 64 caractères hexadécimaux (`openssl rand -hex 32`), enregistrer uniquement le SHA-256 de cette chaîne exacte dans `public.rate_limit_server_keys.key_hash` via une session d’administration Supabase, puis ajouter cette chaîne comme variable sensible dans Vercel. Ne jamais copier cette clé dans Git, une capture d’écran ou un message.
 
 Le RPC limité ne permet que de consommer des compteurs anti-abus ; cette clé ne permet pas de lire les bilans ni de supprimer des utilisateurs. Les identifiants des compteurs sont des HMAC d’adresses IP, pas les adresses en clair. Les compteurs expirés sont nettoyés lors des requêtes suivantes.
 

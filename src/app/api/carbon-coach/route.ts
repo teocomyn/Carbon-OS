@@ -60,8 +60,15 @@ export async function POST(request: Request) {
   );
   if (limited0) return limited0;
 
+  let rawBody: unknown;
   try {
-    const rawBody = await readBoundedJson(request, 64_000);
+    rawBody = await readBoundedJson(request, 64_000);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLarge)
+      return Response.json({ error: "payload_too_large" }, { status: 413 });
+    return Response.json({ error: "invalid_json" }, { status: 400 });
+  }
+  try {
     const parsedBody = requestSchema.safeParse(rawBody);
     if (!parsedBody.success) {
       return Response.json({ error: "invalid_request" }, { status: 400 });
@@ -107,11 +114,7 @@ export async function POST(request: Request) {
         onError: () => "Le conseiller est momentanément indisponible.",
       }),
     });
-  } catch (error) {
-    if (error instanceof RequestBodyTooLarge)
-      return Response.json({ error: "payload_too_large" }, { status: 413 });
-    if (error instanceof SyntaxError)
-      return Response.json({ error: "invalid_json" }, { status: 400 });
+  } catch {
     return Response.json({ error: "chat_unavailable" }, { status: 503 });
   }
 }

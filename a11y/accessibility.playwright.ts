@@ -134,7 +134,7 @@ test("le questionnaire se termine même si le stockage est refusé", async ({
   });
   await page.goto("/questionnaire", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("status")).toContainText(
-    "ne permet pas la sauvegarde",
+    "sauvegarde locale est bloquée ou saturée",
   );
   for (let step = 0; step < 11; step += 1) {
     const next = page.locator(".questionnaire-next");

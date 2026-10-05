@@ -76,12 +76,12 @@ import { calculateAssessment, countAssessmentLines } from "@/lib/calculator";
 import {
   completedActionsSince,
   MAX_ACTIVE_ACTIONS,
-  mergeActionPlans,
   normalizeActionPlan,
   parseActionPlan,
 } from "@/lib/action-plan";
 import { secondAssessmentDelay, trackCarbonEvent } from "@/lib/analytics";
 import {
+  applyCloudSyncLocally,
   deleteCloudHistory,
   downloadJson,
   syncHistoryWithCloud,
@@ -90,7 +90,6 @@ import {
   addLocalSnapshot,
   calculateProgress,
   createAssessmentSnapshot,
-  mergeHistories,
   readLocalHistory,
   writeLocalHistory,
 } from "@/lib/history";
@@ -548,15 +547,19 @@ export function Dashboard() {
       setHistory(loadedHistory);
       setHydrated(true);
       setSyncStatus("syncing");
+      const goalAtSyncStart = readBrowserStorage(GOAL_STORAGE_KEY);
       syncHistoryWithCloud(loadedHistory, loadedGoal, loadedPlan, !hasLocalGoal)
         .then((cloud) => {
           if (!cloud) {
             setSyncStatus("local");
             return;
           }
-          const merged = writeLocalHistory(
-            mergeHistories(loadedHistory, cloud.history),
+          const mergedState = applyCloudSyncLocally(
+            cloud,
+            goalAtSyncStart,
+            buildScenarios(loadedAnswers),
           );
+          const merged = mergedState.history;
           setHistory(merged);
           if (merged.length) {
             const latest = merged.at(-1);
@@ -571,9 +574,12 @@ export function Dashboard() {
             } else if (storedAnswers) {
               setHasAssessment(true);
             }
+          } else if (cloud.deletedAt) {
+            setHasAssessment(false);
+            setAnswers(defaultAnswers);
           }
           const mergedPlan = enrichActionPlan(
-            mergeActionPlans(loadedPlan, cloud.actionPlan ?? []),
+            mergedState.actionPlan,
             buildScenarios(loadedAnswers),
           );
           setActionPlan(mergedPlan);
@@ -581,10 +587,7 @@ export function Dashboard() {
             ACTION_PLAN_STORAGE_KEY,
             JSON.stringify(mergedPlan),
           );
-          if (cloud.goalKg && cloud.goalKg >= 500) {
-            setGoalKg(cloud.goalKg);
-            writeBrowserStorage(GOAL_STORAGE_KEY, String(cloud.goalKg));
-          }
+          if (mergedState.goalKg) setGoalKg(mergedState.goalKg);
           setSyncStatus("synced");
         })
         .catch(() => setSyncStatus("error"));
@@ -729,7 +732,7 @@ export function Dashboard() {
       )
     )
       return;
-    clearLocalData();
+    const localDeleted = clearLocalData();
     setAnswers(defaultAnswers);
     setGoalKg(5000);
     setHistory([]);
@@ -740,17 +743,25 @@ export function Dashboard() {
       try {
         const response = await deleteCloudHistory();
         setFeedback(
-          response.ok
-            ? "Données locales et synchronisées supprimées"
-            : "Données locales supprimées — suppression distante à réessayer",
+          !localDeleted
+            ? "La suppression locale est bloquée. Effacez les données de ce site dans les réglages du navigateur."
+            : response.ok
+              ? "Données locales et synchronisées supprimées"
+              : "Données locales supprimées — suppression distante à réessayer",
         );
       } catch {
         setFeedback(
-          "Données locales supprimées — suppression distante à réessayer",
+          localDeleted
+            ? "Données locales supprimées — suppression distante à réessayer"
+            : "Suppressions non confirmées. Effacez les données de ce site dans les réglages du navigateur et réessayez la suppression distante.",
         );
       }
     } else {
-      setFeedback("Données locales supprimées");
+      setFeedback(
+        localDeleted
+          ? "Données locales supprimées"
+          : "La suppression locale est bloquée. Effacez les données de ce site dans les réglages du navigateur.",
+      );
     }
   };
   const saveGoal = (value: number) => {
@@ -762,7 +773,19 @@ export function Dashboard() {
     if (["synced", "syncing", "error"].includes(syncStatus)) {
       setSyncStatus("syncing");
       syncHistoryWithCloud(history, value, actionPlan)
-        .then((cloud) => setSyncStatus(cloud ? "synced" : "error"))
+        .then((cloud) => {
+          if (cloud) {
+            const merged = applyCloudSyncLocally(
+              cloud,
+              String(value),
+              scenarios,
+            );
+            setHistory(merged.history);
+            setActionPlan(merged.actionPlan);
+            if (merged.goalKg) setGoalKg(merged.goalKg);
+          }
+          setSyncStatus(cloud ? "synced" : "error");
+        })
         .catch(() => setSyncStatus("error"));
     }
   };
@@ -785,9 +808,19 @@ export function Dashboard() {
       });
     if (["synced", "syncing", "error"].includes(syncStatus)) {
       setSyncStatus("syncing");
+      const goalAtSyncStart = readBrowserStorage(GOAL_STORAGE_KEY);
       syncHistoryWithCloud(updatedHistory, goalKg, actionPlan)
         .then((cloud) => {
-          if (cloud) setHistory(writeLocalHistory(cloud.history));
+          if (cloud) {
+            const merged = applyCloudSyncLocally(
+              cloud,
+              goalAtSyncStart,
+              scenarios,
+            );
+            setHistory(merged.history);
+            setActionPlan(merged.actionPlan);
+            if (merged.goalKg) setGoalKg(merged.goalKg);
+          }
           setSyncStatus(cloud ? "synced" : "error");
         })
         .catch(() => setSyncStatus("error"));
@@ -796,6 +829,7 @@ export function Dashboard() {
   const retrySync = () => {
     setSyncStatus("syncing");
     setFeedback("Nouvelle tentative de synchronisation…");
+    const goalAtSyncStart = readBrowserStorage(GOAL_STORAGE_KEY);
     syncHistoryWithCloud(history, goalKg, actionPlan)
       .then((cloud) => {
         if (!cloud) {
@@ -803,23 +837,10 @@ export function Dashboard() {
           setFeedback("Connectez-vous pour activer la synchronisation");
           return;
         }
-        const merged = writeLocalHistory(
-          mergeHistories(history, cloud.history),
-        );
-        setHistory(merged);
-        const mergedPlan = enrichActionPlan(
-          mergeActionPlans(actionPlan, cloud.actionPlan ?? []),
-          scenarios,
-        );
-        setActionPlan(mergedPlan);
-        writeBrowserStorage(
-          ACTION_PLAN_STORAGE_KEY,
-          JSON.stringify(mergedPlan),
-        );
-        if (cloud.goalKg && cloud.goalKg >= 500) {
-          setGoalKg(cloud.goalKg);
-          writeBrowserStorage(GOAL_STORAGE_KEY, String(cloud.goalKg));
-        }
+        const merged = applyCloudSyncLocally(cloud, goalAtSyncStart, scenarios);
+        setHistory(merged.history);
+        setActionPlan(merged.actionPlan);
+        if (merged.goalKg) setGoalKg(merged.goalKg);
         setSyncStatus("synced");
         setFeedback("Synchronisation terminée");
       })
@@ -836,8 +857,21 @@ export function Dashboard() {
     writeBrowserStorage(ACTION_PLAN_STORAGE_KEY, JSON.stringify(normalized));
     if (["synced", "syncing", "error"].includes(syncStatus)) {
       setSyncStatus("syncing");
+      const goalAtSyncStart = readBrowserStorage(GOAL_STORAGE_KEY);
       syncHistoryWithCloud(history, goalKg, normalized)
-        .then((cloud) => setSyncStatus(cloud ? "synced" : "error"))
+        .then((cloud) => {
+          if (cloud) {
+            const merged = applyCloudSyncLocally(
+              cloud,
+              goalAtSyncStart,
+              scenarios,
+            );
+            setHistory(merged.history);
+            setActionPlan(merged.actionPlan);
+            if (merged.goalKg) setGoalKg(merged.goalKg);
+          }
+          setSyncStatus(cloud ? "synced" : "error");
+        })
         .catch(() => setSyncStatus("error"));
     }
   };
@@ -1838,8 +1872,9 @@ export function Dashboard() {
                     active={activeScenarios.includes(s.id)}
                     onToggle={() => toggleScenario(s.id)}
                     planStatus={
-                      actionPlan.find((item) => item.scenarioId === s.id)
-                        ?.status
+                      actionPlan.find(
+                        (item) => !item.removed && item.scenarioId === s.id,
+                      )?.status
                     }
                     planFull={activePlannedActions.length >= MAX_ACTIVE_ACTIONS}
                     onAddToPlan={() => addToPlan(s)}

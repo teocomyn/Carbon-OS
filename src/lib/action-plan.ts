@@ -33,23 +33,35 @@ export function normalizeActionPlan(values: ActionPlanItem[]) {
         (item.status === "completed" ? item.updatedAt : null),
     };
     const current = unique.get(item.scenarioId);
-    if (!current || normalized.updatedAt > current.updatedAt)
+    if (
+      !current ||
+      Date.parse(normalized.updatedAt) > Date.parse(current.updatedAt) ||
+      (Date.parse(normalized.updatedAt) === Date.parse(current.updatedAt) &&
+        normalized.removed &&
+        !current.removed)
+    )
       unique.set(item.scenarioId, normalized);
   }
-  const sorted = [...unique.values()].sort((left, right) =>
-    left.addedAt.localeCompare(right.addedAt),
+  const sorted = [...unique.values()].sort(
+    (left, right) =>
+      Date.parse(left.addedAt) - Date.parse(right.addedAt) ||
+      left.scenarioId.localeCompare(right.scenarioId),
   );
   const active = sorted
     .filter((item) => !item.removed && item.status !== "completed")
     .slice(0, MAX_ACTIVE_ACTIONS);
   const completed = sorted
     .filter((item) => !item.removed && item.status === "completed")
+    .sort((a, b) => Date.parse(a.updatedAt) - Date.parse(b.updatedAt))
     .slice(-MAX_COMPLETED_ACTIONS);
   const retainedIds = new Set(
     [
       ...active,
       ...completed,
-      ...sorted.filter((item) => item.removed).slice(-20),
+      ...sorted
+        .filter((item) => item.removed)
+        .sort((a, b) => Date.parse(a.updatedAt) - Date.parse(b.updatedAt))
+        .slice(-20),
     ].map((item) => item.scenarioId),
   );
   return sorted.filter((item) => retainedIds.has(item.scenarioId));

@@ -68,14 +68,15 @@ describe("recommendations", () => {
   });
 
   it("keeps the train scenario inside the schema at extreme distances", () => {
-    const answers = { ...defaultAnswers, carKm: 10000, trainKm: 199999 };
+    const answers = { ...defaultAnswers, carKm: 10000, trainKm: 199000 };
     const next = applyScenarioToAnswers(answers, "train");
     expect(next.trainKm).toBe(200000);
-    expect(next.carKm).toBe(9999);
-    expect(
-      buildScenarios(answers).some((scenario) =>
-        scenario.title.includes("25 %"),
-      ),
-    ).toBe(false);
+    expect(next.carKm).toBe(9000);
+    const train = buildScenarios(answers).find(
+      (scenario) => scenario.id === "train",
+    );
+    expect(train).toBeDefined();
+    expect(train!.savingKg).toBeGreaterThan(20);
+    expect(train!.title).not.toContain("25 %");
   });
 });

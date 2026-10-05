@@ -15,12 +15,12 @@ Branche de maintenance : `fix/security-and-beta-reliability`. `main` reste prot�
 ## État externe vérifié pendant l’audit
 
 - Supabase Carbon OS : région Paris, projet `hzkmqodnhcwthowufqqy`, RLS et politiques utilisateur actives sur les bilans/préférences, clés étrangères avec suppression en cascade.
-- Les trois nouvelles migrations sont appliquées. `SUPABASE_RATE_LIMIT_KEY` est configurée comme variable sensible Vercel de production ; disponible à partir du prochain déploiement.
+- Les quatre nouvelles migrations sont appliquées, dont génération de suppression et upload transactionnel entre appareils. `SUPABASE_RATE_LIMIT_KEY` est configurée comme variable sensible Vercel de production ; disponible à partir du prochain déploiement.
 - Aucun bilan utilisateur consulté, modifié ou supprimé. Aucun e-mail supprimé ni préférence de notification personnelle changée.
 
 ## Validation
 
-- TypeScript, ESLint et 61 tests unitaires : réussis.
+- TypeScript, ESLint et 68 tests unitaires : réussis.
 - 32 tests navigateur/Playwright/Axe réussis sur Chromium, dont parcours complet avec stockage refusé.
 - Audit npm production : aucune vulnérabilité détectée lors de ce passage.
 - Audit complet : une vulnérabilité `braces` sans correctif publié, propagée à cinq paquets de développement. Ne pas forcer une rétrogradation du framework pour masquer l’alerte.

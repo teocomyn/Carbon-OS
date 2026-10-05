@@ -37,6 +37,7 @@ async function readCloudState(
   const [
     { data: rows, error },
     { data: preferences, error: preferenceReadError },
+    { data: syncState, error: syncStateError },
   ] = await Promise.all([
     supabase
       .from("assessments")
@@ -49,8 +50,14 @@ async function readCloudState(
       .select("goal_kg, action_plan")
       .eq("user_id", userId)
       .maybeSingle(),
+    supabase
+      .from("user_sync_state")
+      .select("deleted_at")
+      .eq("user_id", userId)
+      .maybeSingle(),
   ]);
-  if (error || preferenceReadError) throw error ?? preferenceReadError;
+  if (error || preferenceReadError || syncStateError)
+    throw error ?? preferenceReadError ?? syncStateError;
   const history = (rows ?? []).map(
     (row) =>
       ({
@@ -63,6 +70,7 @@ async function readCloudState(
       }) as AssessmentSnapshot,
   );
   return {
+    deletedAt: syncState?.deleted_at ?? null,
     history: normalizeHistory(history),
     goalKg: preferences?.goal_kg ?? null,
     actionPlan: (preferences?.action_plan ?? []) as ActionPlanItem[],
@@ -131,17 +139,15 @@ export async function POST(request: Request) {
   });
 
   try {
-    if (rows.length) {
-      const { error } = await auth.supabase
-        .from("assessments")
-        .upsert(rows, { onConflict: "id" });
-      if (error) throw error;
-    }
-    const { error: preferenceError } = await auth.supabase.rpc(
-      "merge_carbon_preferences",
-      { p_goal_kg: parsed.data.goalKg, p_action_plan: parsed.data.actionPlan },
-    );
-    if (preferenceError) throw preferenceError;
+    const { error: syncError } = await auth.supabase.rpc("commit_carbon_sync", {
+      p_assessments: rows,
+      p_goal_kg: parsed.data.goalKg,
+      p_action_plan: parsed.data.actionPlan,
+      p_expected_deleted_at: parsed.data.deletedAt,
+    });
+    if (syncError?.code === "40001")
+      return privateJson({ error: "sync_generation_changed" }, 409);
+    if (syncError) throw syncError;
     const state = await readCloudState(auth.supabase, auth.user.id);
     return privateJson({ configured: true, authenticated: true, ...state });
   } catch {
@@ -164,15 +170,7 @@ export async function DELETE(request: Request) {
     return privateJson({ error: auth.error }, 503);
   if (auth.error === "unauthorized")
     return privateJson({ error: auth.error }, 401);
-  const [{ error: assessmentError }, { error: preferenceError }] =
-    await Promise.all([
-      auth.supabase.from("assessments").delete().eq("user_id", auth.user.id),
-      auth.supabase
-        .from("user_preferences")
-        .delete()
-        .eq("user_id", auth.user.id),
-    ]);
-  if (assessmentError || preferenceError)
-    return privateJson({ error: "cloud_delete_failed" }, 500);
+  const { error } = await auth.supabase.rpc("delete_carbon_data");
+  if (error) return privateJson({ error: "cloud_delete_failed" }, 500);
   return privateJson({ success: true });
 }

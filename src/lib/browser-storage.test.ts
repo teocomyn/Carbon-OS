@@ -3,6 +3,8 @@ import {
   readBrowserStorage,
   writeBrowserStorage,
   removeBrowserStorage,
+  hasStorageIssue,
+  subscribeStorageIssues,
 } from "@/lib/browser-storage";
 import { clearLocalData } from "@/lib/clear-local-data";
 import {
@@ -17,6 +19,36 @@ import { PRODUCT_FEEDBACK_KEY } from "@/lib/product-feedback";
 afterEach(() => vi.unstubAllGlobals());
 
 describe("browser storage", () => {
+  it("signals a failed real write even when a small probe would fit", () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribeStorageIssues(listener);
+    vi.stubGlobal("window", {
+      localStorage: {
+        setItem: (_key: string, value: string) => {
+          if (value.length > 1) throw new Error("QuotaExceededError");
+        },
+      },
+    });
+    expect(writeBrowserStorage("partial-quota-probe", "1")).toBe(true);
+    expect(
+      writeBrowserStorage("partial-quota-answers", "large questionnaire"),
+    ).toBe(false);
+    expect(hasStorageIssue()).toBe(true);
+    expect(listener).toHaveBeenCalled();
+    unsubscribe();
+  });
+  it("does not resurrect readable data when deletion is refused", () => {
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: () => "old",
+        removeItem: () => {
+          throw new Error("SecurityError");
+        },
+      },
+    });
+    removeBrowserStorage("read-only-test");
+    expect(readBrowserStorage("read-only-test")).toBeNull();
+  });
   it("keeps the current session usable when the browser rejects reads and writes", () => {
     vi.stubGlobal("window", {
       get localStorage() {

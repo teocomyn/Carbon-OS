@@ -1,12 +1,97 @@
-import { mergeActionPlans } from "@/lib/action-plan";
-import { mergeHistories } from "@/lib/history";
-import type { ActionPlanItem, AssessmentSnapshot } from "@/lib/types";
+import { mergeActionPlans, parseActionPlan } from "@/lib/action-plan";
+import {
+  mergeHistories,
+  readLocalHistory,
+  writeLocalHistory,
+} from "@/lib/history";
+import {
+  readBrowserStorage,
+  writeBrowserStorage,
+  removeBrowserStorage,
+} from "@/lib/browser-storage";
+import {
+  ACTION_PLAN_STORAGE_KEY,
+  GOAL_STORAGE_KEY,
+  STORAGE_KEY,
+  QUESTIONNAIRE_DRAFT_KEY,
+} from "@/data/defaults";
+import { enrichActionPlan } from "@/lib/plan-helpers";
+import { parseQuestionnaireDraft } from "@/lib/questionnaire-draft";
+import type { ActionPlanItem, AssessmentSnapshot, Scenario } from "@/lib/types";
 
 export type CloudSyncState = {
+  deletedAt?: string | null;
   history: AssessmentSnapshot[];
   goalKg: number | null;
   actionPlan: ActionPlanItem[];
 };
+
+export function afterCloudDeletion(
+  state: CloudSyncState,
+  deletedAt: string | null | undefined,
+): CloudSyncState {
+  if (!deletedAt) return state;
+  const cutoff = Date.parse(deletedAt);
+  return {
+    ...state,
+    deletedAt,
+    history: state.history.filter(
+      (entry) =>
+        entry.source !== "imported" && Date.parse(entry.createdAt) > cutoff,
+    ),
+    actionPlan: state.actionPlan.filter(
+      (entry) => Date.parse(entry.updatedAt) > cutoff,
+    ),
+  };
+}
+
+// A response can arrive after another local edit. Merge against storage NOW,
+// not against the state captured when the network request began.
+export function applyCloudSyncLocally(
+  cloud: CloudSyncState,
+  goalAtSyncStart: string | null,
+  scenarios: Scenario[],
+) {
+  const local = afterCloudDeletion(
+    {
+      history: readLocalHistory(),
+      actionPlan: parseActionPlan(readBrowserStorage(ACTION_PLAN_STORAGE_KEY)),
+      goalKg: null,
+    },
+    cloud.deletedAt,
+  );
+  const history = writeLocalHistory(
+    mergeHistories(local.history, cloud.history),
+  );
+  if (cloud.deletedAt && !history.length) {
+    removeBrowserStorage(STORAGE_KEY);
+    const draft = parseQuestionnaireDraft(
+      readBrowserStorage(QUESTIONNAIRE_DRAFT_KEY),
+      Number.MAX_SAFE_INTEGER,
+    );
+    if (!draft || Date.parse(draft.updatedAt) <= Date.parse(cloud.deletedAt))
+      removeBrowserStorage(QUESTIONNAIRE_DRAFT_KEY);
+  }
+  const actionPlan = enrichActionPlan(
+    mergeActionPlans(local.actionPlan, cloud.actionPlan),
+    scenarios,
+  );
+  writeBrowserStorage(ACTION_PLAN_STORAGE_KEY, JSON.stringify(actionPlan));
+  const currentGoal = readBrowserStorage(GOAL_STORAGE_KEY);
+  if (
+    currentGoal === goalAtSyncStart &&
+    cloud.goalKg &&
+    cloud.goalKg >= 500 &&
+    cloud.goalKg <= 100_000
+  )
+    writeBrowserStorage(GOAL_STORAGE_KEY, String(cloud.goalKg));
+  const storedGoal = Number(readBrowserStorage(GOAL_STORAGE_KEY));
+  return {
+    history,
+    actionPlan,
+    goalKg: storedGoal >= 500 && storedGoal <= 100_000 ? storedGoal : null,
+  };
+}
 
 let syncQueue: Promise<unknown> = Promise.resolve();
 let syncEpoch = 0;
@@ -65,20 +150,28 @@ async function performSync(
     history: AssessmentSnapshot[];
     goalKg: number | null;
     actionPlan: ActionPlanItem[];
+    deletedAt?: string | null;
   };
   if (!cloud.configured || !cloud.authenticated) return null;
   if (epoch !== syncEpoch) return null;
-  const merged = mergeHistories(history, cloud.history);
+  const local = afterCloudDeletion(
+    { history, actionPlan, goalKg },
+    cloud.deletedAt,
+  );
+  const merged = mergeHistories(local.history, cloud.history);
   const resolvedGoal =
     preferCloudGoal && cloud.goalKg && cloud.goalKg >= 500
       ? cloud.goalKg
-      : goalKg;
+      : cloud.deletedAt && !local.history.length && !local.actionPlan.length
+        ? (cloud.goalKg ?? 5000)
+        : goalKg;
 
-  const mergedPlan = mergeActionPlans(actionPlan, cloud.actionPlan ?? []);
+  const mergedPlan = mergeActionPlans(local.actionPlan, cloud.actionPlan ?? []);
   const response = await fetch("/api/sync", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
+      deletedAt: cloud.deletedAt ?? null,
       history: merged,
       goalKg: resolvedGoal,
       actionPlan: mergedPlan,
