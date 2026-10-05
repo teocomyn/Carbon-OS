@@ -16,8 +16,55 @@ const item = (scenarioId: string, updatedAt: string): ActionPlanItem => ({
 });
 
 describe("action plan", () => {
+  it("retains the most recently updated tombstones, matching the database", () => {
+    const base = Date.parse("2026-08-12T10:00:00Z");
+    const removed = Array.from({ length: 21 }, (_, index) => ({
+      ...item(
+        `removed-${index}`,
+        new Date(base + (21 - index) * 1000).toISOString(),
+      ),
+      addedAt: new Date(base + index * 1000).toISOString(),
+      removed: true,
+    }));
+    const merged = mergeActionPlans(removed, []);
+    expect(merged).toHaveLength(20);
+    expect(merged.some((entry) => entry.scenarioId === "removed-0")).toBe(true);
+    expect(merged.some((entry) => entry.scenarioId === "removed-20")).toBe(
+      false,
+    );
+  });
+  it("prefers a deletion on equal timestamps, regardless of merge order", () => {
+    const old = item("train", "2026-08-12T10:00:00.000Z");
+    const removed = { ...old, removed: true };
+    expect(mergeActionPlans([old], [removed])[0]?.removed).toBe(true);
+    expect(mergeActionPlans([removed], [old])[0]?.removed).toBe(true);
+  });
+  it("compares instants rather than timezone representations", () => {
+    const old = item("train", "2026-08-12T11:00:00+02:00");
+    const newer = {
+      ...old,
+      updatedAt: "2026-08-12T10:00:00.000Z",
+      status: "completed" as const,
+    };
+    expect(mergeActionPlans([old], [newer])[0]?.status).toBe("completed");
+  });
   it("rejects malformed local data", () => {
     expect(parseActionPlan('{"email":"private@example.com"}')).toEqual([]);
+  });
+
+  it("does not resurrect a removed action from an older remote copy", () => {
+    const old = item("train", "2026-08-12T10:00:00.000Z");
+    const removed = {
+      ...old,
+      removed: true,
+      updatedAt: "2026-08-12T11:00:00.000Z",
+    };
+    const merged = mergeActionPlans([removed], [old]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.removed).toBe(true);
+    expect(completedActionsSince(merged, old.addedAt)).toEqual([]);
+    const readded = { ...old, updatedAt: "2026-08-12T12:00:00.000Z" };
+    expect(mergeActionPlans([readded], merged)[0]?.removed).toBeUndefined();
   });
 
   it("keeps the latest version of an action", () => {

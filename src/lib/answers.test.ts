@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { defaultAnswers } from "@/data/defaults";
+import { assessmentAnswersSchema } from "@/lib/validation";
 import {
   normalizeAnswers,
   parseStoredAnswers,
@@ -48,5 +50,23 @@ describe("normalizeAnswers", () => {
     expect(parseStoredAnswers(null)).toBeNull();
     expect(parseStoredAnswers("{")).toBeNull();
     expect(parseStoredAnswers(JSON.stringify({ carKm: 10 }))).toBeNull();
+  });
+
+  it("migrates a real legacy payload missing a required field", () => {
+    const legacy: Partial<typeof defaultAnswers> = {
+      ...defaultAnswers,
+      carKm: 1234,
+    };
+    delete legacy.occupancy;
+    expect(assessmentAnswersSchema.safeParse(legacy).success).toBe(false);
+    const migrated = parseStoredAnswers(JSON.stringify(legacy));
+    expect(migrated?.occupancy).toBe(defaultAnswers.occupancy);
+    expect(migrated?.carKm).toBe(1234);
+  });
+
+  it("does not recover empty objects, arrays or invalid complete payloads", () => {
+    expect(tryNormalizeAnswers({})).toBeNull();
+    expect(tryNormalizeAnswers([])).toBeNull();
+    expect(tryNormalizeAnswers({ ...defaultAnswers, carKm: -1 })).toBeNull();
   });
 });

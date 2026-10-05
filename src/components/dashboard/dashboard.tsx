@@ -1,4 +1,11 @@
 "use client";
+import { StorageNotice } from "@/components/storage-notice";
+
+import {
+  readBrowserStorage,
+  writeBrowserStorage,
+  removeBrowserStorage,
+} from "@/lib/browser-storage";
 
 import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, motion } from "motion/react";
@@ -63,24 +70,26 @@ import {
 } from "@/data/defaults";
 import { emissionFactors, factorById } from "@/data/emission-factors";
 import { readStoredAnswers, tryNormalizeAnswers } from "@/lib/answers";
-import { PRODUCT_FEEDBACK_KEY } from "@/lib/product-feedback";
+import { clearLocalData } from "@/lib/clear-local-data";
 import { FRANCE_AVERAGE_KG, FRANCE_AVERAGE_SOURCE } from "@/lib/benchmark";
 import { calculateAssessment, countAssessmentLines } from "@/lib/calculator";
 import {
   completedActionsSince,
   MAX_ACTIVE_ACTIONS,
-  mergeActionPlans,
   normalizeActionPlan,
   parseActionPlan,
 } from "@/lib/action-plan";
 import { secondAssessmentDelay, trackCarbonEvent } from "@/lib/analytics";
-import { downloadJson, syncHistoryWithCloud } from "@/lib/cloud-sync";
+import {
+  applyCloudSyncLocally,
+  deleteCloudHistory,
+  downloadJson,
+  syncHistoryWithCloud,
+} from "@/lib/cloud-sync";
 import {
   addLocalSnapshot,
   calculateProgress,
-  clearLocalHistory,
   createAssessmentSnapshot,
-  mergeHistories,
   readLocalHistory,
   writeLocalHistory,
 } from "@/lib/history";
@@ -498,7 +507,7 @@ export function Dashboard() {
           setAnswers(loadedAnswers);
           setHasAssessment(true);
         }
-        const storedGoal = Number(localStorage.getItem(GOAL_STORAGE_KEY));
+        const storedGoal = Number(readBrowserStorage(GOAL_STORAGE_KEY));
         if (storedGoal >= 500) {
           hasLocalGoal = true;
           loadedGoal = storedGoal;
@@ -518,10 +527,10 @@ export function Dashboard() {
       }
       let loadedHistory = readLocalHistory();
       const loadedPlan = enrichActionPlan(
-        parseActionPlan(localStorage.getItem(ACTION_PLAN_STORAGE_KEY)),
+        parseActionPlan(readBrowserStorage(ACTION_PLAN_STORAGE_KEY)),
         buildScenarios(loadedAnswers),
       );
-      localStorage.setItem(ACTION_PLAN_STORAGE_KEY, JSON.stringify(loadedPlan));
+      writeBrowserStorage(ACTION_PLAN_STORAGE_KEY, JSON.stringify(loadedPlan));
       setActionPlan(loadedPlan);
       if (!loadedHistory.length && storedAnswers) {
         loadedHistory = addLocalSnapshot(
@@ -538,15 +547,19 @@ export function Dashboard() {
       setHistory(loadedHistory);
       setHydrated(true);
       setSyncStatus("syncing");
+      const goalAtSyncStart = readBrowserStorage(GOAL_STORAGE_KEY);
       syncHistoryWithCloud(loadedHistory, loadedGoal, loadedPlan, !hasLocalGoal)
         .then((cloud) => {
           if (!cloud) {
             setSyncStatus("local");
             return;
           }
-          const merged = writeLocalHistory(
-            mergeHistories(loadedHistory, cloud.history),
+          const mergedState = applyCloudSyncLocally(
+            cloud,
+            goalAtSyncStart,
+            buildScenarios(loadedAnswers),
           );
+          const merged = mergedState.history;
           setHistory(merged);
           if (merged.length) {
             const latest = merged.at(-1);
@@ -555,26 +568,26 @@ export function Dashboard() {
               if (cloudAnswers) {
                 setHasAssessment(true);
                 setAnswers(cloudAnswers);
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudAnswers));
+                writeBrowserStorage(STORAGE_KEY, JSON.stringify(cloudAnswers));
                 loadedAnswers = cloudAnswers;
               }
             } else if (storedAnswers) {
               setHasAssessment(true);
             }
+          } else if (cloud.deletedAt) {
+            setHasAssessment(false);
+            setAnswers(defaultAnswers);
           }
           const mergedPlan = enrichActionPlan(
-            mergeActionPlans(loadedPlan, cloud.actionPlan ?? []),
+            mergedState.actionPlan,
             buildScenarios(loadedAnswers),
           );
           setActionPlan(mergedPlan);
-          localStorage.setItem(
+          writeBrowserStorage(
             ACTION_PLAN_STORAGE_KEY,
             JSON.stringify(mergedPlan),
           );
-          if (cloud.goalKg && cloud.goalKg >= 500) {
-            setGoalKg(cloud.goalKg);
-            localStorage.setItem(GOAL_STORAGE_KEY, String(cloud.goalKg));
-          }
+          if (mergedState.goalKg) setGoalKg(mergedState.goalKg);
           setSyncStatus("synced");
         })
         .catch(() => setSyncStatus("error"));
@@ -603,13 +616,15 @@ export function Dashboard() {
     .sort((a, b) => b.kgCo2e - a.kgCo2e)
     .slice(0, 5);
   const topAction = scenarios[0];
-  const plannedActions = actionPlan.map((item) => ({
-    item,
-    scenario: resolvePlanScenario(
+  const plannedActions = actionPlan
+    .filter((item) => !item.removed)
+    .map((item) => ({
       item,
-      scenarios.find((scenario) => scenario.id === item.scenarioId),
-    ),
-  }));
+      scenario: resolvePlanScenario(
+        item,
+        scenarios.find((scenario) => scenario.id === item.scenarioId),
+      ),
+    }));
   const activePlannedActions = plannedActions.filter(
     ({ item }) => item.status !== "completed",
   );
@@ -701,8 +716,8 @@ export function Dashboard() {
       )
     )
       return;
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(ACTION_PLAN_STORAGE_KEY);
+    removeBrowserStorage(STORAGE_KEY);
+    removeBrowserStorage(ACTION_PLAN_STORAGE_KEY);
     setAnswers(defaultAnswers);
     setActionPlan([]);
     setActiveScenarios([]);
@@ -711,44 +726,66 @@ export function Dashboard() {
   const deleteAllData = async () => {
     if (
       !window.confirm(
-        syncStatus === "synced"
+        ["synced", "syncing", "error"].includes(syncStatus)
           ? "Supprimer les réponses, l’historique et l’objectif sur cet appareil et dans votre compte ?"
           : "Supprimer les réponses, l’historique et l’objectif de cet appareil ?",
       )
     )
       return;
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(GOAL_STORAGE_KEY);
-    localStorage.removeItem(ACTION_PLAN_STORAGE_KEY);
-    localStorage.removeItem(PRODUCT_FEEDBACK_KEY);
-    clearLocalHistory();
+    const localDeleted = clearLocalData();
     setAnswers(defaultAnswers);
     setGoalKg(5000);
     setHistory([]);
     setActionPlan([]);
     setActiveScenarios([]);
     setHasAssessment(false);
-    if (syncStatus === "synced") {
-      const response = await fetch("/api/sync", { method: "DELETE" });
-      setFeedback(
-        response.ok
-          ? "Données locales et synchronisées supprimées"
-          : "Données locales supprimées — suppression distante à réessayer",
-      );
+    if (["synced", "syncing", "error"].includes(syncStatus)) {
+      try {
+        const response = await deleteCloudHistory();
+        setFeedback(
+          !localDeleted
+            ? "La suppression locale est bloquée. Effacez les données de ce site dans les réglages du navigateur."
+            : response.ok
+              ? "Données locales et synchronisées supprimées"
+              : "Données locales supprimées — suppression distante à réessayer",
+        );
+      } catch {
+        setFeedback(
+          localDeleted
+            ? "Données locales supprimées — suppression distante à réessayer"
+            : "Suppressions non confirmées. Effacez les données de ce site dans les réglages du navigateur et réessayez la suppression distante.",
+        );
+      }
     } else {
-      setFeedback("Données locales supprimées");
+      setFeedback(
+        localDeleted
+          ? "Données locales supprimées"
+          : "La suppression locale est bloquée. Effacez les données de ce site dans les réglages du navigateur.",
+      );
     }
   };
   const saveGoal = (value: number) => {
     setGoalKg(value);
-    localStorage.setItem(GOAL_STORAGE_KEY, String(value));
+    writeBrowserStorage(GOAL_STORAGE_KEY, String(value));
     setGoalDialogOpen(false);
     setFeedback(`Objectif enregistré : ${formatTons(value)} t en 2030`);
     trackCarbonEvent({ name: "Objectif défini" });
-    if (syncStatus === "synced") {
+    if (["synced", "syncing", "error"].includes(syncStatus)) {
       setSyncStatus("syncing");
       syncHistoryWithCloud(history, value, actionPlan)
-        .then(() => setSyncStatus("synced"))
+        .then((cloud) => {
+          if (cloud) {
+            const merged = applyCloudSyncLocally(
+              cloud,
+              String(value),
+              scenarios,
+            );
+            setHistory(merged.history);
+            setActionPlan(merged.actionPlan);
+            if (merged.goalKg) setGoalKg(merged.goalKg);
+          }
+          setSyncStatus(cloud ? "synced" : "error");
+        })
         .catch(() => setSyncStatus("error"));
     }
   };
@@ -769,12 +806,22 @@ export function Dashboard() {
         name: "Second bilan réalisé",
         data: { delai: secondAssessmentDelay(history[0]!.createdAt) },
       });
-    if (syncStatus === "synced") {
+    if (["synced", "syncing", "error"].includes(syncStatus)) {
       setSyncStatus("syncing");
+      const goalAtSyncStart = readBrowserStorage(GOAL_STORAGE_KEY);
       syncHistoryWithCloud(updatedHistory, goalKg, actionPlan)
         .then((cloud) => {
-          if (cloud) setHistory(writeLocalHistory(cloud.history));
-          setSyncStatus("synced");
+          if (cloud) {
+            const merged = applyCloudSyncLocally(
+              cloud,
+              goalAtSyncStart,
+              scenarios,
+            );
+            setHistory(merged.history);
+            setActionPlan(merged.actionPlan);
+            if (merged.goalKg) setGoalKg(merged.goalKg);
+          }
+          setSyncStatus(cloud ? "synced" : "error");
         })
         .catch(() => setSyncStatus("error"));
     }
@@ -782,6 +829,7 @@ export function Dashboard() {
   const retrySync = () => {
     setSyncStatus("syncing");
     setFeedback("Nouvelle tentative de synchronisation…");
+    const goalAtSyncStart = readBrowserStorage(GOAL_STORAGE_KEY);
     syncHistoryWithCloud(history, goalKg, actionPlan)
       .then((cloud) => {
         if (!cloud) {
@@ -789,23 +837,10 @@ export function Dashboard() {
           setFeedback("Connectez-vous pour activer la synchronisation");
           return;
         }
-        const merged = writeLocalHistory(
-          mergeHistories(history, cloud.history),
-        );
-        setHistory(merged);
-        const mergedPlan = enrichActionPlan(
-          mergeActionPlans(actionPlan, cloud.actionPlan ?? []),
-          scenarios,
-        );
-        setActionPlan(mergedPlan);
-        localStorage.setItem(
-          ACTION_PLAN_STORAGE_KEY,
-          JSON.stringify(mergedPlan),
-        );
-        if (cloud.goalKg && cloud.goalKg >= 500) {
-          setGoalKg(cloud.goalKg);
-          localStorage.setItem(GOAL_STORAGE_KEY, String(cloud.goalKg));
-        }
+        const merged = applyCloudSyncLocally(cloud, goalAtSyncStart, scenarios);
+        setHistory(merged.history);
+        setActionPlan(merged.actionPlan);
+        if (merged.goalKg) setGoalKg(merged.goalKg);
         setSyncStatus("synced");
         setFeedback("Synchronisation terminée");
       })
@@ -819,17 +854,32 @@ export function Dashboard() {
   const persistPlan = (nextPlan: ActionPlanItem[]) => {
     const normalized = normalizeActionPlan(nextPlan);
     setActionPlan(normalized);
-    localStorage.setItem(ACTION_PLAN_STORAGE_KEY, JSON.stringify(normalized));
-    if (syncStatus === "synced") {
+    writeBrowserStorage(ACTION_PLAN_STORAGE_KEY, JSON.stringify(normalized));
+    if (["synced", "syncing", "error"].includes(syncStatus)) {
       setSyncStatus("syncing");
+      const goalAtSyncStart = readBrowserStorage(GOAL_STORAGE_KEY);
       syncHistoryWithCloud(history, goalKg, normalized)
-        .then(() => setSyncStatus("synced"))
+        .then((cloud) => {
+          if (cloud) {
+            const merged = applyCloudSyncLocally(
+              cloud,
+              goalAtSyncStart,
+              scenarios,
+            );
+            setHistory(merged.history);
+            setActionPlan(merged.actionPlan);
+            if (merged.goalKg) setGoalKg(merged.goalKg);
+          }
+          setSyncStatus(cloud ? "synced" : "error");
+        })
         .catch(() => setSyncStatus("error"));
     }
   };
   const addToPlan = (scenario: Scenario) => {
     if (
-      actionPlan.some((item) => item.scenarioId === scenario.id) ||
+      actionPlan.some(
+        (item) => !item.removed && item.scenarioId === scenario.id,
+      ) ||
       activePlannedActions.length >= MAX_ACTIVE_ACTIONS
     )
       return;
@@ -898,7 +948,13 @@ export function Dashboard() {
     );
   };
   const removeFromPlan = (scenarioId: string) => {
-    persistPlan(actionPlan.filter((item) => item.scenarioId !== scenarioId));
+    persistPlan(
+      actionPlan.map((item) =>
+        item.scenarioId === scenarioId
+          ? { ...item, removed: true, updatedAt: new Date().toISOString() }
+          : item,
+      ),
+    );
     setFeedback("Action retirée du plan");
   };
   const exportData = () => {
@@ -1091,7 +1147,7 @@ export function Dashboard() {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            className="fixed right-4 top-20 z-[70] rounded-full border border-[var(--border)] bg-[var(--card)] px-4 py-2.5 text-xs font-semibold shadow-lg"
+            className="fixed right-4 top-20 z-[70] max-w-[calc(100vw-2rem)] break-words rounded-2xl border border-[var(--border)] bg-[var(--card)] px-4 py-2.5 text-xs font-semibold shadow-lg"
           >
             {feedback}
           </motion.div>
@@ -1099,6 +1155,7 @@ export function Dashboard() {
       </AnimatePresence>
       <main className="lg:ml-[248px]">
         <div className="mx-auto max-w-[1180px] px-5 py-8 lg:px-8 lg:py-12">
+          <StorageNotice />
           <section
             id="overview"
             className={cn("scroll-mt-24", activeView !== "today" && "hidden")}
@@ -1156,37 +1213,39 @@ export function Dashboard() {
                     className="h-[210px]"
                     aria-label={`Graphique de répartition : ${result.categories.map((c) => `${c.label} ${Math.round((c.kgCo2e / result.totalKg) * 100)} %`).join(", ")}`}
                   >
-                    <ResponsiveContainer
-                      width="100%"
-                      height="100%"
-                      minWidth={0}
-                      initialDimension={{ width: 320, height: 210 }}
-                    >
-                      <PieChart>
-                        <Pie
-                          data={result.categories}
-                          dataKey="kgCo2e"
-                          nameKey="label"
-                          innerRadius={68}
-                          outerRadius={92}
-                          paddingAngle={2}
-                          stroke="none"
-                        >
-                          {result.categories.map((c) => (
-                            <Cell key={c.category} fill={c.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          formatter={(value) => formatKg(Number(value))}
-                          contentStyle={{
-                            background: "var(--card)",
-                            border: "1px solid var(--border)",
-                            borderRadius: 12,
-                            fontSize: 12,
-                          }}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
+                    {activeView === "today" && (
+                      <ResponsiveContainer
+                        width="100%"
+                        height="100%"
+                        minWidth={0}
+                        initialDimension={{ width: 320, height: 210 }}
+                      >
+                        <PieChart>
+                          <Pie
+                            data={result.categories}
+                            dataKey="kgCo2e"
+                            nameKey="label"
+                            innerRadius={68}
+                            outerRadius={92}
+                            paddingAngle={2}
+                            stroke="none"
+                          >
+                            {result.categories.map((c) => (
+                              <Cell key={c.category} fill={c.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={(value) => formatKg(Number(value))}
+                            contentStyle={{
+                              background: "var(--card)",
+                              border: "1px solid var(--border)",
+                              borderRadius: 12,
+                              fontSize: 12,
+                            }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    )}
                     <div className="pointer-events-none relative -top-[126px] text-center">
                       <p className="text-xl font-semibold">
                         {lineCounts.estimated}/{lineCounts.total}
@@ -1247,7 +1306,10 @@ export function Dashboard() {
             <details className="dashboard-advanced-details group mt-5 rounded-2xl border border-[var(--border)] bg-[var(--card)]">
               <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 rounded-2xl px-5 py-3 text-sm font-semibold text-[var(--muted-foreground)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--positive)]">
                 <span>Voir les détails du bilan</span>
-                <ChevronRight className="transition-transform group-open:rotate-90" size={16} />
+                <ChevronRight
+                  className="transition-transform group-open:rotate-90"
+                  size={16}
+                />
               </summary>
               <div className="grid gap-3 border-t border-[var(--border)] p-3 sm:grid-cols-3">
                 <MetricCard
@@ -1568,55 +1630,63 @@ export function Dashboard() {
                   className="mt-7 h-[260px]"
                   aria-label="Courbe de progression carbone"
                 >
-                  <ResponsiveContainer
-                    width="100%"
-                    height="100%"
-                    minWidth={0}
-                    initialDimension={{ width: 700, height: 260 }}
-                  >
-                    <LineChart
-                      data={progressData}
-                      margin={{ top: 8, right: 8, left: -18, bottom: 0 }}
+                  {activeView === "progress" && (
+                    <ResponsiveContainer
+                      width="100%"
+                      height="100%"
+                      minWidth={0}
+                      initialDimension={{ width: 700, height: 260 }}
                     >
-                      <CartesianGrid
-                        stroke="var(--border)"
-                        strokeDasharray="3 6"
-                        vertical={false}
-                      />
-                      <XAxis
-                        dataKey="date"
-                        tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <YAxis
-                        domain={[0, "auto"]}
-                        tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <Tooltip
-                        formatter={(value) => [
-                          `${Number(value).toLocaleString("fr-FR")} t`,
-                          "Empreinte",
-                        ]}
-                        contentStyle={{
-                          background: "var(--card)",
-                          border: "1px solid var(--border)",
-                          borderRadius: 12,
-                          fontSize: 12,
-                        }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="tonnes"
-                        stroke="var(--accent)"
-                        strokeWidth={3}
-                        dot={{ r: 4, fill: "var(--accent)", strokeWidth: 0 }}
-                        activeDot={{ r: 6 }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
+                      <LineChart
+                        data={progressData}
+                        margin={{ top: 8, right: 8, left: -18, bottom: 0 }}
+                      >
+                        <CartesianGrid
+                          stroke="var(--border)"
+                          strokeDasharray="3 6"
+                          vertical={false}
+                        />
+                        <XAxis
+                          dataKey="date"
+                          tick={{
+                            fontSize: 10,
+                            fill: "var(--muted-foreground)",
+                          }}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <YAxis
+                          domain={[0, "auto"]}
+                          tick={{
+                            fontSize: 10,
+                            fill: "var(--muted-foreground)",
+                          }}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <Tooltip
+                          formatter={(value) => [
+                            `${Number(value).toLocaleString("fr-FR")} t`,
+                            "Empreinte",
+                          ]}
+                          contentStyle={{
+                            background: "var(--card)",
+                            border: "1px solid var(--border)",
+                            borderRadius: 12,
+                            fontSize: 12,
+                          }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="tonnes"
+                          stroke="var(--accent)"
+                          strokeWidth={3}
+                          dot={{ r: 4, fill: "var(--accent)", strokeWidth: 0 }}
+                          activeDot={{ r: 6 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
                 </div>
               </div>
 
@@ -1802,8 +1872,9 @@ export function Dashboard() {
                     active={activeScenarios.includes(s.id)}
                     onToggle={() => toggleScenario(s.id)}
                     planStatus={
-                      actionPlan.find((item) => item.scenarioId === s.id)
-                        ?.status
+                      actionPlan.find(
+                        (item) => !item.removed && item.scenarioId === s.id,
+                      )?.status
                     }
                     planFull={activePlannedActions.length >= MAX_ACTIVE_ACTIONS}
                     onAddToPlan={() => addToPlan(s)}

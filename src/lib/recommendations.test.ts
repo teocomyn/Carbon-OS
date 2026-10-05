@@ -16,7 +16,9 @@ describe("recommendations", () => {
     };
     const scenarios = buildScenarios(answers);
     const ids = scenarios
-      .filter((scenario) => scenario.id === "electric-car" || scenario.id === "train")
+      .filter(
+        (scenario) => scenario.id === "electric-car" || scenario.id === "train",
+      )
       .map((scenario) => scenario.id);
     const summed = scenarios
       .filter((scenario) => ids.includes(scenario.id))
@@ -63,5 +65,18 @@ describe("recommendations", () => {
     expect(scenarios.some((scenario) => scenario.id === "electric-car")).toBe(
       false,
     );
+  });
+
+  it("keeps the train scenario inside the schema at extreme distances", () => {
+    const answers = { ...defaultAnswers, carKm: 10000, trainKm: 199000 };
+    const next = applyScenarioToAnswers(answers, "train");
+    expect(next.trainKm).toBe(200000);
+    expect(next.carKm).toBe(9000);
+    const train = buildScenarios(answers).find(
+      (scenario) => scenario.id === "train",
+    );
+    expect(train).toBeDefined();
+    expect(train!.savingKg).toBeGreaterThan(20);
+    expect(train!.title).not.toContain("25 %");
   });
 });

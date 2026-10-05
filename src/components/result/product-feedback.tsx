@@ -91,10 +91,11 @@ export function ProductFeedback() {
       >
         <p className="inline-flex items-center gap-2 font-semibold text-[var(--foreground)]">
           <Check size={16} className="text-[var(--positive)]" />
-          Merci, votre retour reste sur cet appareil.
+          Merci pour votre retour.
         </p>
         <p className="mt-2">
-          Il nous sert à clarifier le parcours, pas à vous identifier.
+          Vos trois choix sont transmis à la mesure d’audience, sauf si vous
+          l’avez désactivée. Aucun bilan ni e-mail n’est envoyé avec eux.
         </p>
       </section>
     );
@@ -118,9 +119,13 @@ export function ProductFeedback() {
         setExisting(stored);
       }}
     >
-      <p className="text-sm font-semibold">Trois questions pour améliorer Carbon OS</p>
+      <p className="text-sm font-semibold">
+        Trois questions pour améliorer Carbon OS
+      </p>
       <p className="mt-2 text-xs leading-5 text-[var(--muted-foreground)]">
-        Réponses agrégées uniquement. Aucun texte libre, aucun e-mail.
+        Vos trois choix sont transmis à la mesure d’audience, sauf si vous
+        l’avez désactivée. Aucun bilan, texte libre ni e-mail n’est envoyé avec
+        eux.
       </p>
       <div className="mt-6 space-y-5">
         <ChoiceRow

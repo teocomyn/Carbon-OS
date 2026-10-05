@@ -243,7 +243,7 @@ export function CarbonCoach({ context }: { context: CarbonCoachContext }) {
                 <div className="flex items-center justify-between gap-3 px-1 pb-0.5">
                   <span className="inline-flex items-center gap-1.5 text-[9px] text-[var(--muted-foreground)]">
                     <ShieldCheck size={11} className="text-[var(--positive)]" />
-                    Conversation non enregistrée
+                    Pas d’historique de chat dans Carbon OS
                   </span>
                   <button
                     type="submit"

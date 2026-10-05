@@ -153,7 +153,7 @@ export function buildScenarios(answers: AssessmentAnswers): Scenario[] {
     const simulated = simulateCombinedScenarios(answers, ["train"]);
     add({
       id: "train",
-      title: "Basculer 25 % des kilomètres vers le train",
+      title: "Remplacer une partie des trajets en voiture par le train",
       description: "Ciblez d’abord les trajets interurbains réguliers.",
       savingKg: simulated.savingKg,
       effort: "Modéré",

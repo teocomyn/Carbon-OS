@@ -1,3 +1,4 @@
+import { readBrowserStorage, writeBrowserStorage } from "@/lib/browser-storage";
 export const PRODUCT_FEEDBACK_KEY = "carbon-os-product-feedback-v1";
 
 export type FeedbackClarity = "haute" | "moyenne" | "basse";
@@ -43,7 +44,7 @@ export function parseProductFeedback(
 
 export function readProductFeedback() {
   if (typeof window === "undefined") return null;
-  return parseProductFeedback(localStorage.getItem(PRODUCT_FEEDBACK_KEY));
+  return parseProductFeedback(readBrowserStorage(PRODUCT_FEEDBACK_KEY));
 }
 
 export function writeProductFeedback(
@@ -53,6 +54,6 @@ export function writeProductFeedback(
     ...feedback,
     submittedAt: new Date().toISOString(),
   };
-  localStorage.setItem(PRODUCT_FEEDBACK_KEY, JSON.stringify(stored));
+  writeBrowserStorage(PRODUCT_FEEDBACK_KEY, JSON.stringify(stored));
   return stored;
 }

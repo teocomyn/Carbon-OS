@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { hasTrustedOrigin, isRateLimited, requestIp, retryAfterSeconds } from "@/lib/rate-limit";
+import { hasTrustedOrigin } from "@/lib/rate-limit";
+import { rateLimitResponse } from "@/lib/server-rate-limit";
 import {
   createSupabaseAdminClient,
   createSupabaseServerClient,
@@ -11,25 +12,13 @@ const ACCOUNT_DELETE_LIMIT = 5;
 export async function DELETE(request: Request) {
   if (!hasTrustedOrigin(request))
     return NextResponse.json({ error: "invalid_origin" }, { status: 403 });
-  if (
-    isRateLimited(
-      "account-delete",
-      requestIp(request),
-      ACCOUNT_DELETE_LIMIT,
-      ACCOUNT_DELETE_WINDOW_MS,
-    )
-  ) {
-    return NextResponse.json(
-      { error: "rate_limit" },
-      {
-        status: 429,
-        headers: {
-          "Cache-Control": "private, no-store",
-          "Retry-After": String(retryAfterSeconds(ACCOUNT_DELETE_WINDOW_MS)),
-        },
-      },
-    );
-  }
+  const limited0 = await rateLimitResponse(
+    request,
+    "account-delete",
+    ACCOUNT_DELETE_LIMIT,
+    ACCOUNT_DELETE_WINDOW_MS,
+  );
+  if (limited0) return limited0;
   const supabase = await createSupabaseServerClient();
   const admin = createSupabaseAdminClient();
   if (!supabase)

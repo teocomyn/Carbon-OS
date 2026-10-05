@@ -1,4 +1,5 @@
 "use client";
+import { StorageNotice } from "@/components/storage-notice";
 
 import { motion } from "motion/react";
 import {
@@ -87,6 +88,7 @@ export function AssessmentResult() {
       </header>
 
       <div className="result-content mx-auto max-w-[1040px] px-5 py-10 sm:py-16 lg:px-8 lg:py-20">
+        <StorageNotice />
         <motion.section
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}

@@ -1,6 +1,7 @@
 "use client";
 
 import { Analytics, type BeforeSendEvent } from "@vercel/analytics/next";
+import { readBrowserStorage } from "@/lib/browser-storage";
 
 export function PrivacyAnalytics() {
   return (
@@ -12,7 +13,7 @@ export function PrivacyAnalytics() {
         if (
           privacyNavigator.globalPrivacyControl === true ||
           navigator.doNotTrack === "1" ||
-          localStorage.getItem("va-disable") === "1"
+          readBrowserStorage("va-disable") === "1"
         )
           return null;
 

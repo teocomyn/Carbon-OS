@@ -1,5 +1,12 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+import { defaultAnswers } from "../src/data/defaults";
+
+async function seedAssessment(page: import("@playwright/test").Page) {
+  await page.addInitScript((answers) => {
+    localStorage.setItem("carbon-os-assessment-v1", JSON.stringify(answers));
+  }, defaultAnswers);
+}
 
 const routes = ["/", "/questionnaire", "/dashboard", "/compte"];
 const viewports = [
@@ -16,7 +23,11 @@ for (const viewport of viewports) {
 
     for (const route of routes) {
       test(`${route} reste lisible et accessible`, async ({ page }) => {
+        if (route === "/dashboard") await seedAssessment(page);
         await page.goto(route, { waitUntil: "domcontentloaded" });
+        await expect(
+          page.getByRole("heading", { level: 1 }).first(),
+        ).toBeVisible();
         await page.evaluate(() => document.fonts.ready);
 
         const horizontalOverflow = await page.evaluate(
@@ -39,8 +50,12 @@ test.describe("thème clair", () => {
 
   for (const route of routes) {
     test(`${route} conserve ses contrastes`, async ({ page }) => {
+      if (route === "/dashboard") await seedAssessment(page);
       await page.addInitScript(() => localStorage.setItem("theme", "light"));
       await page.goto(route, { waitUntil: "domcontentloaded" });
+      await expect(
+        page.getByRole("heading", { level: 1 }).first(),
+      ).toBeVisible();
 
       const results = await new AxeBuilder({ page })
         .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
@@ -51,7 +66,9 @@ test.describe("thème clair", () => {
   }
 });
 
-test("le focus clavier reste visible dans le questionnaire", async ({ page }) => {
+test("le focus clavier reste visible dans le questionnaire", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/questionnaire", { waitUntil: "domcontentloaded" });
 
@@ -76,11 +93,61 @@ test("le focus clavier reste visible dans le questionnaire", async ({ page }) =>
 });
 
 test("le dashboard ne présente qu’une action principale", async ({ page }) => {
+  await seedAssessment(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
 
   await page.locator("#overview").waitFor();
   await expect(page.locator(".carbon-button--accent:visible")).toHaveCount(1);
+});
+
+for (const route of ["/questionnaire", "/resultat", "/dashboard"]) {
+  test(`${route} ne bloque pas quand le stockage est refusé`, async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(window, "localStorage", {
+        configurable: true,
+        get() {
+          throw new DOMException("Storage blocked", "SecurityError");
+        },
+      });
+    });
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto(route, { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+}
+
+test("le questionnaire se termine même si le stockage est refusé", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      get() {
+        throw new DOMException("Storage blocked", "SecurityError");
+      },
+    });
+  });
+  await page.goto("/questionnaire", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("status")).toContainText(
+    "sauvegarde locale est bloquée ou saturée",
+  );
+  for (let step = 0; step < 11; step += 1) {
+    const next = page.locator(".questionnaire-next");
+    const last = (await next.innerText()).includes("Voir mon résultat");
+    await next.click();
+    if (last) break;
+    await expect(next).toBeEnabled();
+    await page.waitForTimeout(350);
+  }
+  await expect(page).toHaveURL(/\/resultat$/);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(
+    "Votre empreinte est estimée",
+  );
 });
 
 test("le résultat vide n’invente pas de bilan", async ({ page }) => {

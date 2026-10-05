@@ -1,6 +1,7 @@
 "use client";
 
 import { track } from "@vercel/analytics";
+import { readBrowserStorage } from "@/lib/browser-storage";
 
 export type QuestionnaireChapter =
   | "profil"
@@ -52,12 +53,16 @@ export function trackCarbonEvent(event: CarbonEvent) {
   if (
     privacyNavigator.globalPrivacyControl === true ||
     navigator.doNotTrack === "1" ||
-    localStorage.getItem("va-disable") === "1"
+    readBrowserStorage("va-disable") === "1"
   )
     return;
 
-  if ("data" in event) track(event.name, event.data);
-  else track(event.name);
+  try {
+    if ("data" in event) track(event.name, event.data);
+    else track(event.name);
+  } catch {
+    // Audience measurement must never break the user's journey.
+  }
 }
 
 export function roundedDurationSeconds(startedAt: number) {
