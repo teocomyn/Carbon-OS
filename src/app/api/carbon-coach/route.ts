@@ -11,12 +11,9 @@ import {
   buildCarbonCoachInstructions,
   carbonCoachContextSchema,
 } from "@/lib/carbon-coach";
-import {
-  hasTrustedOrigin,
-  isRateLimited,
-  requestIp,
-  retryAfterSeconds,
-} from "@/lib/rate-limit";
+import { hasTrustedOrigin } from "@/lib/rate-limit";
+import { rateLimitResponse } from "@/lib/server-rate-limit";
+import { readBoundedJson, RequestBodyTooLarge } from "@/lib/request-body";
 
 export const maxDuration = 30;
 
@@ -55,25 +52,16 @@ export async function POST(request: Request) {
   if (!hasTrustedOrigin(request)) {
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
-  if (
-    isRateLimited(
-      "carbon-coach",
-      requestIp(request),
-      RATE_LIMIT_REQUESTS,
-      RATE_LIMIT_WINDOW_MS,
-    )
-  ) {
-    return Response.json(
-      { error: "rate_limit" },
-      {
-        status: 429,
-        headers: { "Retry-After": String(retryAfterSeconds(RATE_LIMIT_WINDOW_MS)) },
-      },
-    );
-  }
+  const limited0 = await rateLimitResponse(
+    request,
+    "carbon-coach",
+    RATE_LIMIT_REQUESTS,
+    RATE_LIMIT_WINDOW_MS,
+  );
+  if (limited0) return limited0;
 
   try {
-    const rawBody: unknown = await request.json();
+    const rawBody = await readBoundedJson(request, 64_000);
     const parsedBody = requestSchema.safeParse(rawBody);
     if (!parsedBody.success) {
       return Response.json({ error: "invalid_request" }, { status: 400 });
@@ -119,7 +107,11 @@ export async function POST(request: Request) {
         onError: () => "Le conseiller est momentanément indisponible.",
       }),
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof RequestBodyTooLarge)
+      return Response.json({ error: "payload_too_large" }, { status: 413 });
+    if (error instanceof SyntaxError)
+      return Response.json({ error: "invalid_json" }, { status: 400 });
     return Response.json({ error: "chat_unavailable" }, { status: 503 });
   }
 }

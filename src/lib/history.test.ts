@@ -13,12 +13,15 @@ function snapshot(
   totalOffset = 0,
   createdAt = "2026-08-12T10:00:00.000Z",
 ) {
-  const result = calculateAssessment(defaultAnswers);
-  result.totalKg += totalOffset;
+  const answers = {
+    ...defaultAnswers,
+    carKm: defaultAnswers.carKm + totalOffset,
+  };
+  const result = calculateAssessment(answers);
   result.calculatedAt = createdAt;
   return createAssessmentSnapshot({
     id,
-    answers: defaultAnswers,
+    answers,
     result,
     goalKg: 3500,
     source: "questionnaire",
@@ -59,8 +62,32 @@ describe("assessment history", () => {
     const first = snapshot("first");
     const latest = snapshot("latest", -500, "2026-09-12T10:00:00.000Z");
     const progress = calculateProgress([first, latest]);
-    expect(progress.changeKg).toBeCloseTo(-500, 5);
+    expect(progress.changeKg).toBeCloseTo(
+      latest.result.totalKg - first.result.totalKg,
+      5,
+    );
     expect(progress.changePercent).toBeLessThan(0);
     expect(progress.best?.id).toBe("latest");
+  });
+
+  it("drops corrupt answers and dates, even with a plausible stored result", () => {
+    const good = snapshot("good");
+    expect(
+      parseHistory(
+        JSON.stringify([
+          { ...good, answers: { ...defaultAnswers, carKm: "invalid" } },
+          { ...good, createdAt: "not-a-date" },
+          { ...good, goalKg: -1 },
+        ]),
+      ),
+    ).toEqual([]);
+  });
+
+  it("rebuilds current-version totals instead of trusting a modified cache", () => {
+    const good = snapshot("good");
+    const [refreshed] = parseHistory(
+      JSON.stringify([{ ...good, result: { ...good.result, totalKg: 1 } }]),
+    );
+    expect(refreshed?.result.totalKg).toBeCloseTo(good.result.totalKg, 5);
   });
 });

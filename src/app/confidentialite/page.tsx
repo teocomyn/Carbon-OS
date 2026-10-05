@@ -36,8 +36,8 @@ export default function PrivacyPage() {
           Sans compte, les données restent dans le navigateur jusqu’à
           suppression manuelle ou vidage du stockage. Avec un compte, les
           bilans synchronisés sont conservés jusqu’à suppression du compte ou
-          des données. La région d’hébergement exacte doit être une région
-          européenne et figurer ici dès que le projet de production est fixé.
+          des données. La base Supabase du projet est hébergée dans la région
+          européenne Paris (eu-west-3).
         </p>
       </ContentSection>
       <ContentSection title="Hébergement et journaux techniques">
@@ -46,6 +46,13 @@ export default function PrivacyPage() {
           traiter des informations techniques nécessaires à la livraison et à la
           sécurité du service, telles que l’adresse IP, l’agent utilisateur ou
           les journaux de requêtes.
+        </p>
+        <p>
+          Pour limiter les abus, Carbon OS conserve dans Supabase des compteurs
+          de requêtes associés à une empreinte cryptographique de l’adresse IP,
+          et non à l’adresse brute. Ils expirent au bout de dix minutes au
+          maximum et les compteurs expirés sont supprimés lors des requêtes
+          suivantes. Ils ne contiennent ni réponses au bilan ni e-mail.
         </p>
       </ContentSection>
       <ContentSection title="Export et suppression">
@@ -73,6 +80,22 @@ export default function PrivacyPage() {
           Privacy Control et Do Not Track sont respectés par Carbon OS.
         </p>
       </ContentSection>
+      <ContentSection title="Conseiller carbone facultatif">
+        <p>
+          Si vous envoyez une question au conseiller, vos messages et un résumé
+          de votre bilan (total et catégories arrondis, objectif, actions et
+          recommandations) sont transmis à Vercel AI Gateway et au fournisseur
+          du modèle OpenAI pour produire une réponse. Les réponses détaillées
+          du questionnaire et votre e-mail ne sont pas ajoutés automatiquement.
+        </p>
+        <p>
+          Carbon OS ne conserve pas l’historique du chat dans sa base. Cela ne
+          signifie pas une absence de traitement ou de conservation technique
+          chez les fournisseurs. N’ajoutez pas de données sensibles à vos
+          questions. Le conseiller ne calcule pas votre empreinte et ses
+          suggestions restent indicatives.
+        </p>
+      </ContentSection>
       <ContentSection title="Vos droits et contact">
         <p>
           Vous pouvez demander l’accès, la rectification, l’effacement ou la
@@ -87,7 +110,7 @@ export default function PrivacyPage() {
           ) : (
             "à compléter avant l’activation publique des comptes"
           )}
-          . Dernière mise à jour : 12 septembre 2026.
+          . Dernière mise à jour : 5 octobre 2026.
         </p>
       </ContentSection>
     </PublicPage>

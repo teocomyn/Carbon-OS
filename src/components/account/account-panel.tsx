@@ -1,12 +1,14 @@
 "use client";
 
+import { readBrowserStorage, writeBrowserStorage } from "@/lib/browser-storage";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { Check, Cloud, LogOut, ShieldCheck, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { clearLocalHistory } from "@/lib/history";
+import { clearLocalData } from "@/lib/clear-local-data";
 import { trackCarbonEvent } from "@/lib/analytics";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -14,10 +16,12 @@ const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
 export function AccountPanel({
   configured,
+  canDeleteAccount = false,
   email,
   initialMessage = "",
 }: {
   configured: boolean;
+  canDeleteAccount?: boolean;
   email: string | null;
   initialMessage?: string;
 }) {
@@ -31,9 +35,9 @@ export function AccountPanel({
   useEffect(() => {
     if (!email || !initialMessage.startsWith("Connexion réussie")) return;
     const key = "carbon-os-account-activated-tracked-v1";
-    if (localStorage.getItem(key)) return;
+    if (readBrowserStorage(key)) return;
     trackCarbonEvent({ name: "Compte activé" });
-    localStorage.setItem(key, "1");
+    writeBrowserStorage(key, "1");
   }, [email, initialMessage]);
 
   const requestMagicLink = async (event: FormEvent<HTMLFormElement>) => {
@@ -42,32 +46,44 @@ export function AccountPanel({
     if (!supabase) return;
     setPending(true);
     setMessage("");
-    const { error } = await supabase.auth.signInWithOtp({
-      email: address.trim().toLowerCase(),
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-        captchaToken,
-      },
-    });
-    if (turnstileSiteKey) {
-      setCaptchaToken(undefined);
-      setCaptchaKey((current) => current + 1);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: address.trim().toLowerCase(),
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          captchaToken,
+        },
+      });
+      if (turnstileSiteKey) {
+        setCaptchaToken(undefined);
+        setCaptchaKey((current) => current + 1);
+      }
+      setPending(false);
+      setMessage(
+        error
+          ? "Impossible d’envoyer le lien pour le moment."
+          : "Lien envoyé. Vérifiez votre boîte mail pour continuer.",
+      );
+    } catch {
+      setMessage("Connexion indisponible. Vos bilans locaux sont conservés.");
+    } finally {
+      setPending(false);
     }
-    setPending(false);
-    setMessage(
-      error
-        ? "Impossible d’envoyer le lien pour le moment."
-        : "Lien envoyé. Vérifiez votre boîte mail pour continuer.",
-    );
   };
 
   const signOut = async () => {
     const supabase = createSupabaseBrowserClient();
     if (!supabase) return;
     setPending(true);
-    await supabase.auth.signOut();
-    router.refresh();
-    setPending(false);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      router.refresh();
+    } catch {
+      setMessage("La déconnexion a échoué. Réessayez.");
+    } finally {
+      setPending(false);
+    }
   };
 
   const deleteAccount = async () => {
@@ -84,15 +100,23 @@ export function AccountPanel({
     )
       return;
     setPending(true);
-    const response = await fetch("/api/account", { method: "DELETE" });
-    if (response.ok) {
-      clearLocalHistory();
-      router.push("/?compte=supprime");
-      router.refresh();
-    } else {
-      setMessage("La suppression n’a pas abouti. Réessayez plus tard.");
+    try {
+      const response = await fetch("/api/account", { method: "DELETE" });
+      if (response.ok) {
+        clearLocalData();
+        await createSupabaseBrowserClient()?.auth.signOut({ scope: "local" });
+        router.push("/?compte=supprime");
+        router.refresh();
+      } else {
+        setMessage("La suppression n’a pas abouti. Réessayez plus tard.");
+      }
+    } catch {
+      setMessage(
+        "Suppression non confirmée. Vérifiez votre connexion et réessayez.",
+      );
+    } finally {
+      setPending(false);
     }
-    setPending(false);
   };
 
   if (!configured) {
@@ -128,7 +152,7 @@ export function AccountPanel({
             <span className="inline-flex items-center gap-2 rounded-full bg-[var(--positive-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--positive)]">
               <Check size={14} /> Compte actif
             </span>
-            <h2 className="mt-5 text-2xl font-semibold tracking-[-.035em]">
+            <h2 className="mt-5 text-2xl font-semibold tracking-[-.035em] [overflow-wrap:anywhere]">
               {email}
             </h2>
             <p className="mt-2 max-w-[560px] text-sm leading-6 text-[var(--muted-foreground)]">
@@ -145,10 +169,24 @@ export function AccountPanel({
           <Button variant="secondary" onClick={signOut} disabled={pending}>
             <LogOut size={15} /> Se déconnecter
           </Button>
-          <Button variant="ghost" onClick={deleteAccount} disabled={pending}>
+          <Button
+            variant="ghost"
+            onClick={deleteAccount}
+            disabled={pending || !canDeleteAccount}
+          >
             <Trash2 size={15} /> Supprimer le compte
           </Button>
         </div>
+        {!canDeleteAccount && (
+          <p
+            role="status"
+            className="mt-4 text-sm leading-6 text-[var(--muted-foreground)]"
+          >
+            La suppression du compte est temporairement indisponible : la
+            configuration serveur doit être complétée. Vous pouvez supprimer vos
+            bilans synchronisés depuis les données du tableau de bord.
+          </p>
+        )}
         {message && (
           <p
             className="mt-4 text-xs text-[var(--muted-foreground)]"

@@ -1,4 +1,11 @@
 "use client";
+import { StorageNotice } from "@/components/storage-notice";
+
+import {
+  readBrowserStorage,
+  writeBrowserStorage,
+  removeBrowserStorage,
+} from "@/lib/browser-storage";
 
 import { AnimatePresence, motion } from "motion/react";
 import { useRouter } from "next/navigation";
@@ -384,13 +391,12 @@ export function Questionnaire() {
   useEffect(() => {
     const restoreTimer = window.setTimeout(() => {
       const draft = parseQuestionnaireDraft(
-        localStorage.getItem(QUESTIONNAIRE_DRAFT_KEY),
+        readBrowserStorage(QUESTIONNAIRE_DRAFT_KEY),
         steps.length,
       );
       if (draft) {
         const veganDiet =
-          draft.answers.diet === "vegan" ||
-          draft.answers.diet === "vegetarian";
+          draft.answers.diet === "vegan" || draft.answers.diet === "vegetarian";
         setAnswers({
           ...draft.answers,
           beefFrequency: veganDiet ? 0 : draft.answers.beefFrequency,
@@ -413,7 +419,7 @@ export function Questionnaire() {
   }, []);
   useEffect(() => {
     if (!draftReady || saving) return;
-    localStorage.setItem(
+    writeBrowserStorage(
       QUESTIONNAIRE_DRAFT_KEY,
       JSON.stringify({
         answers,
@@ -429,8 +435,7 @@ export function Questionnaire() {
     const resumedTimer = window.setTimeout(() => setResumed(false), 4_000);
     return () => window.clearTimeout(resumedTimer);
   }, [resumed]);
-  const skipsBeef =
-    answers.diet === "vegan" || answers.diet === "vegetarian";
+  const skipsBeef = answers.diet === "vegan" || answers.diet === "vegetarian";
   const skipsCar = answers.primaryMobility !== "car";
 
   const next = () => {
@@ -468,10 +473,10 @@ export function Questionnaire() {
         ...answers,
         beefFrequency: skipsBeef ? (0 as const) : answers.beefFrequency,
       };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(finalized));
-      localStorage.removeItem(QUESTIONNAIRE_DRAFT_KEY);
+      writeBrowserStorage(STORAGE_KEY, JSON.stringify(finalized));
+      removeBrowserStorage(QUESTIONNAIRE_DRAFT_KEY);
       const result = calculateAssessment(finalized);
-      const storedGoal = Number(localStorage.getItem(GOAL_STORAGE_KEY));
+      const storedGoal = Number(readBrowserStorage(GOAL_STORAGE_KEY));
       const previousHistory = readLocalHistory();
       addLocalSnapshot(
         createAssessmentSnapshot({
@@ -650,11 +655,7 @@ export function Questionnaire() {
                     </p>
                   </div>
                 </div>
-                <Button
-                  variant="secondary"
-                  className="shrink-0"
-                  onClick={back}
-                >
+                <Button variant="secondary" className="shrink-0" onClick={back}>
                   Modifier ma réponse
                 </Button>
               </div>
@@ -683,65 +684,66 @@ export function Questionnaire() {
               </div>
             )}
             <div className="questionnaire-range-grid">
-            <RangeField
-              label="Distance en train"
-              value={answers.trainKm}
-              min={0}
-              max={10000}
-              step={100}
-              unit="km/an"
-              onChange={(v) => update("trainKm", v)}
-            />
-            {answers.mode === "precise" && answers.trainKm > 0 && (
-              <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
-                <p className="mb-4 text-sm font-semibold">Type de train</p>
-                <Segment
-                  active={stepWasAnswered}
-                  value={answers.trainService}
-                  onChange={(v) => update("trainService", v)}
-                  options={[
-                    { value: "tgv", label: "Surtout TGV" },
-                    { value: "mixed", label: "Mixte" },
-                    { value: "regional", label: "Surtout TER" },
-                  ]}
-                />
-              </div>
-            )}
-            {answers.mode === "precise" &&
-              answers.primaryMobility === "motorcycle" && (
-                <RangeField
-                  label="Distance à moto"
-                  value={answers.motorcycleKm}
-                  min={0}
-                  max={30000}
-                  step={250}
-                  unit="km/an"
-                  onChange={(v) => update("motorcycleKm", v)}
-                />
-              )}
-            {answers.mode === "precise" &&
-              answers.primaryMobility === "transit" && (
-                <RangeField
-                  label="Transports publics"
-                  value={answers.transitKm}
-                  min={0}
-                  max={20000}
-                  step={200}
-                  unit="km/an"
-                  onChange={(v) => update("transitKm", v)}
-                />
-              )}
-            {answers.mode === "precise" && answers.primaryMobility === "bike" && (
               <RangeField
-                label="Distance à vélo"
-                value={answers.bikeKm}
+                label="Distance en train"
+                value={answers.trainKm}
                 min={0}
-                max={15000}
+                max={10000}
                 step={100}
                 unit="km/an"
-                onChange={(v) => update("bikeKm", v)}
+                onChange={(v) => update("trainKm", v)}
               />
-            )}
+              {answers.mode === "precise" && answers.trainKm > 0 && (
+                <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5">
+                  <p className="mb-4 text-sm font-semibold">Type de train</p>
+                  <Segment
+                    active={stepWasAnswered}
+                    value={answers.trainService}
+                    onChange={(v) => update("trainService", v)}
+                    options={[
+                      { value: "tgv", label: "Surtout TGV" },
+                      { value: "mixed", label: "Mixte" },
+                      { value: "regional", label: "Surtout TER" },
+                    ]}
+                  />
+                </div>
+              )}
+              {answers.mode === "precise" &&
+                answers.primaryMobility === "motorcycle" && (
+                  <RangeField
+                    label="Distance à moto"
+                    value={answers.motorcycleKm}
+                    min={0}
+                    max={30000}
+                    step={250}
+                    unit="km/an"
+                    onChange={(v) => update("motorcycleKm", v)}
+                  />
+                )}
+              {answers.mode === "precise" &&
+                answers.primaryMobility === "transit" && (
+                  <RangeField
+                    label="Transports publics"
+                    value={answers.transitKm}
+                    min={0}
+                    max={20000}
+                    step={200}
+                    unit="km/an"
+                    onChange={(v) => update("transitKm", v)}
+                  />
+                )}
+              {answers.mode === "precise" &&
+                answers.primaryMobility === "bike" && (
+                  <RangeField
+                    label="Distance à vélo"
+                    value={answers.bikeKm}
+                    min={0}
+                    max={15000}
+                    step={100}
+                    unit="km/an"
+                    onChange={(v) => update("bikeKm", v)}
+                  />
+                )}
             </div>
           </div>
         );
@@ -1198,6 +1200,7 @@ export function Questionnaire() {
                 </p>
               )}
               <div className="questionnaire-content mt-9 sm:mt-11">
+                <StorageNotice />
                 {content()}
               </div>
             </motion.div>

@@ -72,6 +72,10 @@ export default async function AccountPage({
         <div className="account-vault-panel">
           <AccountPanel
             configured={configured}
+            canDeleteAccount={Boolean(
+              process.env.SUPABASE_SECRET_KEY ??
+                process.env.SUPABASE_SERVICE_ROLE_KEY,
+            )}
             email={user?.email ?? null}
             initialMessage={
               connexion === "ok"

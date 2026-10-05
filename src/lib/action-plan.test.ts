@@ -20,6 +20,21 @@ describe("action plan", () => {
     expect(parseActionPlan('{"email":"private@example.com"}')).toEqual([]);
   });
 
+  it("does not resurrect a removed action from an older remote copy", () => {
+    const old = item("train", "2026-08-12T10:00:00.000Z");
+    const removed = {
+      ...old,
+      removed: true,
+      updatedAt: "2026-08-12T11:00:00.000Z",
+    };
+    const merged = mergeActionPlans([removed], [old]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.removed).toBe(true);
+    expect(completedActionsSince(merged, old.addedAt)).toEqual([]);
+    const readded = { ...old, updatedAt: "2026-08-12T12:00:00.000Z" };
+    expect(mergeActionPlans([readded], merged)[0]?.removed).toBeUndefined();
+  });
+
   it("keeps the latest version of an action", () => {
     const merged = mergeActionPlans(
       [item("train", "2026-08-12T10:00:00.000Z")],

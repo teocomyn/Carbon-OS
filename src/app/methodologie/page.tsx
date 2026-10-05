@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { ContentSection, PublicPage } from "@/components/public-page";
-import { currentFactorChangelog, FACTOR_CHANGELOG } from "@/data/factor-changelog";
+import {
+  currentFactorChangelog,
+  FACTOR_CHANGELOG,
+} from "@/data/factor-changelog";
 import { emissionFactors, FACTOR_VERSION } from "@/data/emission-factors";
 import {
   FRANCE_AVERAGE_KG,
@@ -91,9 +94,9 @@ export default function MethodologyPage() {
       </ContentSection>
       <ContentSection id="facteurs" title="Mises à jour des facteurs">
         <p>
-          Version courante : {currentFactorChangelog().version}. Quand les facteurs changent, les
-          bilans déjà enregistrés sont recalculés avec le moteur actuel pour
-          que l’historique reste comparable.
+          Version courante : {currentFactorChangelog().version}. Quand les
+          facteurs changent, les bilans déjà enregistrés sont recalculés avec le
+          moteur actuel pour que l’historique reste comparable.
         </p>
         <ol className="mt-4 space-y-4">
           {FACTOR_CHANGELOG.map((entry) => (
@@ -144,7 +147,9 @@ export default function MethodologyPage() {
               </span>
               <span className="sm:text-right">
                 <span className="block font-mono text-sm">
-                  {String(factor.value).replace(".", ",")}
+                  {factor.value.toLocaleString("fr-FR", {
+                    maximumFractionDigits: 6,
+                  })}
                 </span>
                 <span className="text-[10px] text-[var(--muted-foreground)]">
                   {factor.unit} · confiance {factor.confidence}

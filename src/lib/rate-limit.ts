@@ -39,6 +39,10 @@ export function isRateLimited(
 ) {
   const now = Date.now();
   const store = storeFor(scope);
+  for (const [key, entry] of store) {
+    if (entry.resetAt <= now) store.delete(key);
+  }
+  if (store.size >= 10_000 && !store.has(identifier)) return true;
   const current = store.get(identifier);
   if (!current || current.resetAt <= now) {
     store.set(identifier, { count: 1, resetAt: now + windowMs });

@@ -96,6 +96,7 @@ export interface Scenario {
 export type ActionPlanStatus = "to_try" | "in_progress" | "completed";
 
 export interface ActionPlanItem {
+  removed?: boolean;
   scenarioId: string;
   status: ActionPlanStatus;
   startedAt: string | null;

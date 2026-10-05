@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
 import { calculateAssessment } from "@/lib/calculator";
+import { normalizeHistory } from "@/lib/history";
+import { readBoundedJson, RequestBodyTooLarge } from "@/lib/request-body";
 import type { ActionPlanItem, AssessmentSnapshot } from "@/lib/types";
-import {
-  hasTrustedOrigin,
-  isRateLimited,
-  requestIp,
-  retryAfterSeconds,
-} from "@/lib/rate-limit";
+import { hasTrustedOrigin } from "@/lib/rate-limit";
+import { rateLimitResponse } from "@/lib/server-rate-limit";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { syncRequestSchema } from "@/lib/validation";
 
@@ -44,7 +42,7 @@ async function readCloudState(
       .from("assessments")
       .select("id, created_at, source, answers, result, goal_kg")
       .eq("user_id", userId)
-      .order("created_at", { ascending: true })
+      .order("created_at", { ascending: false })
       .limit(50),
     supabase
       .from("user_preferences")
@@ -65,7 +63,7 @@ async function readCloudState(
       }) as AssessmentSnapshot,
   );
   return {
-    history,
+    history: normalizeHistory(history),
     goalKg: preferences?.goal_kg ?? null,
     actionPlan: (preferences?.action_plan ?? []) as ActionPlanItem[],
   };
@@ -88,25 +86,13 @@ export async function GET() {
 export async function POST(request: Request) {
   if (!hasTrustedOrigin(request))
     return privateJson({ error: "invalid_origin" }, 403);
-  if (
-    isRateLimited(
-      "sync-write",
-      requestIp(request),
-      SYNC_RATE_LIMIT_REQUESTS,
-      SYNC_RATE_LIMIT_WINDOW_MS,
-    )
-  ) {
-    return NextResponse.json(
-      { error: "rate_limit" },
-      {
-        status: 429,
-        headers: {
-          "Cache-Control": "private, no-store",
-          "Retry-After": String(retryAfterSeconds(SYNC_RATE_LIMIT_WINDOW_MS)),
-        },
-      },
-    );
-  }
+  const limited0 = await rateLimitResponse(
+    request,
+    "sync-write",
+    SYNC_RATE_LIMIT_REQUESTS,
+    SYNC_RATE_LIMIT_WINDOW_MS,
+  );
+  if (limited0) return limited0;
   const auth = await authenticatedClient();
   if (auth.error === "not_configured")
     return privateJson({ configured: false, authenticated: false }, 503);
@@ -115,8 +101,10 @@ export async function POST(request: Request) {
 
   let json: unknown;
   try {
-    json = await request.json();
-  } catch {
+    json = await readBoundedJson(request, 1_000_000);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLarge)
+      return privateJson({ error: "payload_too_large" }, 413);
     return privateJson({ error: "invalid_json" }, 400);
   }
   const parsed = syncRequestSchema.safeParse(json);
@@ -149,17 +137,10 @@ export async function POST(request: Request) {
         .upsert(rows, { onConflict: "id" });
       if (error) throw error;
     }
-    const { error: preferenceError } = await auth.supabase
-      .from("user_preferences")
-      .upsert(
-        {
-          user_id: auth.user.id,
-          goal_kg: parsed.data.goalKg,
-          action_plan: parsed.data.actionPlan,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id" },
-      );
+    const { error: preferenceError } = await auth.supabase.rpc(
+      "merge_carbon_preferences",
+      { p_goal_kg: parsed.data.goalKg, p_action_plan: parsed.data.actionPlan },
+    );
     if (preferenceError) throw preferenceError;
     const state = await readCloudState(auth.supabase, auth.user.id);
     return privateJson({ configured: true, authenticated: true, ...state });
@@ -171,25 +152,13 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   if (!hasTrustedOrigin(request))
     return privateJson({ error: "invalid_origin" }, 403);
-  if (
-    isRateLimited(
-      "sync-delete",
-      requestIp(request),
-      SYNC_RATE_LIMIT_REQUESTS,
-      SYNC_RATE_LIMIT_WINDOW_MS,
-    )
-  ) {
-    return NextResponse.json(
-      { error: "rate_limit" },
-      {
-        status: 429,
-        headers: {
-          "Cache-Control": "private, no-store",
-          "Retry-After": String(retryAfterSeconds(SYNC_RATE_LIMIT_WINDOW_MS)),
-        },
-      },
-    );
-  }
+  const limited1 = await rateLimitResponse(
+    request,
+    "sync-delete",
+    SYNC_RATE_LIMIT_REQUESTS,
+    SYNC_RATE_LIMIT_WINDOW_MS,
+  );
+  if (limited1) return limited1;
   const auth = await authenticatedClient();
   if (auth.error === "not_configured")
     return privateJson({ error: auth.error }, 503);

@@ -10,20 +10,16 @@ function snapshot(
   transportChange = 0,
   housingChange = 0,
 ) {
-  const result = calculateAssessment(defaultAnswers);
+  const answers = {
+    ...defaultAnswers,
+    carKm: defaultAnswers.carKm + transportChange,
+    surface: defaultAnswers.surface + housingChange,
+  };
+  const result = calculateAssessment(answers);
   result.calculatedAt = createdAt;
-  const transport = result.categories.find(
-    (category) => category.category === "transport",
-  )!;
-  const housing = result.categories.find(
-    (category) => category.category === "housing",
-  )!;
-  transport.kgCo2e += transportChange;
-  housing.kgCo2e += housingChange;
-  result.totalKg += transportChange + housingChange;
   return createAssessmentSnapshot({
     id,
-    answers: defaultAnswers,
+    answers,
     result,
     goalKg: 3500,
     source: "questionnaire",
@@ -37,9 +33,11 @@ describe("progress story", () => {
     const latest = snapshot("latest", "2026-07-01T10:00:00.000Z", 100);
     const story = buildProgressStory([first, previous, latest]);
 
-    expect(story?.changeKg).toBeCloseTo(-400, 5);
+    const change = latest.result.totalKg - previous.result.totalKg;
+    expect(change).toBeLessThan(0);
+    expect(story?.changeKg).toBeCloseTo(change, 5);
     expect(story?.primaryCategory?.category).toBe("transport");
-    expect(story?.primaryCategory?.changeKg).toBeCloseTo(-400, 5);
+    expect(story?.primaryCategory?.changeKg).toBeCloseTo(change, 5);
   });
 
   it("keeps an increase understandable and schedules a three-to-six-month check-in", () => {
@@ -47,18 +45,26 @@ describe("progress story", () => {
     const latest = snapshot("latest", "2026-04-15T10:00:00.000Z", 0, 250);
     const story = buildProgressStory([previous, latest]);
 
-    expect(story?.changeKg).toBeCloseTo(250, 5);
+    const change = latest.result.totalKg - previous.result.totalKg;
+    expect(change).toBeGreaterThan(0);
+    expect(story?.changeKg).toBeCloseTo(change, 5);
     expect(story?.primaryCategory?.category).toBe("housing");
     expect(story?.nextAssessmentStart.startsWith("2026-07-15")).toBe(true);
     expect(story?.nextAssessmentEnd.startsWith("2026-10-15")).toBe(true);
   });
 
   it("marks an assessment as due after three months", () => {
-    expect(isAssessmentDue("2026-01-15T10:00:00.000Z", Date.parse("2026-04-15T10:00:00.000Z"))).toBe(
-      true,
-    );
-    expect(isAssessmentDue("2026-01-15T10:00:00.000Z", Date.parse("2026-03-15T10:00:00.000Z"))).toBe(
-      false,
-    );
+    expect(
+      isAssessmentDue(
+        "2026-01-15T10:00:00.000Z",
+        Date.parse("2026-04-15T10:00:00.000Z"),
+      ),
+    ).toBe(true);
+    expect(
+      isAssessmentDue(
+        "2026-01-15T10:00:00.000Z",
+        Date.parse("2026-03-15T10:00:00.000Z"),
+      ),
+    ).toBe(false);
   });
 });

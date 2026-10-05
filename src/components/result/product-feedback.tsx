@@ -91,10 +91,11 @@ export function ProductFeedback() {
       >
         <p className="inline-flex items-center gap-2 font-semibold text-[var(--foreground)]">
           <Check size={16} className="text-[var(--positive)]" />
-          Merci, votre retour reste sur cet appareil.
+          Merci pour votre retour.
         </p>
         <p className="mt-2">
-          Il nous sert à clarifier le parcours, pas à vous identifier.
+          Vos trois choix sont transmis à la mesure d’audience, sauf si vous
+          l’avez désactivée. Aucun bilan ni e-mail n’est envoyé avec eux.
         </p>
       </section>
     );

@@ -8,11 +8,51 @@ export type CloudSyncState = {
   actionPlan: ActionPlanItem[];
 };
 
-export async function syncHistoryWithCloud(
+let syncQueue: Promise<unknown> = Promise.resolve();
+let syncEpoch = 0;
+
+export function syncHistoryWithCloud(
   history: AssessmentSnapshot[],
   goalKg: number,
   actionPlan: ActionPlanItem[],
   preferCloudGoal = false,
+) {
+  // Serialize the entire read/merge/write cycle, not just the POST.
+  // Recover the queue after failures so a retry can still run.
+  const epoch = syncEpoch;
+  const task = syncQueue
+    .catch(() => undefined)
+    .then(async () => {
+      if (epoch !== syncEpoch) return null;
+      const cloud = await performSync(
+        history,
+        goalKg,
+        actionPlan,
+        preferCloudGoal,
+        epoch,
+      );
+      return epoch === syncEpoch ? cloud : null;
+    });
+  syncQueue = task;
+  return task;
+}
+
+export function deleteCloudHistory() {
+  // Invalidate pending uploads and delete only after the in-flight upload ends.
+  syncEpoch += 1;
+  const task = syncQueue
+    .catch(() => undefined)
+    .then(() => fetch("/api/sync", { method: "DELETE" }));
+  syncQueue = task;
+  return task;
+}
+
+async function performSync(
+  history: AssessmentSnapshot[],
+  goalKg: number,
+  actionPlan: ActionPlanItem[],
+  preferCloudGoal = false,
+  epoch = syncEpoch,
 ) {
   const cloudResponse = await fetch("/api/sync", {
     headers: { Accept: "application/json" },
@@ -27,6 +67,7 @@ export async function syncHistoryWithCloud(
     actionPlan: ActionPlanItem[];
   };
   if (!cloud.configured || !cloud.authenticated) return null;
+  if (epoch !== syncEpoch) return null;
   const merged = mergeHistories(history, cloud.history);
   const resolvedGoal =
     preferCloudGoal && cloud.goalKg && cloud.goalKg >= 500
@@ -43,7 +84,8 @@ export async function syncHistoryWithCloud(
       actionPlan: mergedPlan,
     }),
   });
-  if (response.status === 401 || response.status === 503) return null;
+  if (response.status === 401 || response.status === 503)
+    throw new Error("sync_session_or_service_unavailable");
   if (!response.ok) throw new Error("sync_failed");
   return (await response.json()) as CloudSyncState;
 }
